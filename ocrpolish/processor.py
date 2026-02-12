@@ -1,4 +1,5 @@
 import re
+import textwrap
 
 from ocrpolish.data_model import ProcessingConfig
 
@@ -12,65 +13,85 @@ def should_protect_line(line: str, protected_prefixes: list[str]) -> bool:
         return True
     return any(trimmed.startswith(p) for p in protected_prefixes)
 
-def is_page_number(line: str) -> bool:
-    """Check if a line matches a page numbering pattern."""
+
+def is_structural_marker(line: str) -> bool:
+    """Check if a line matches a structural pattern that MUST be preserved."""
     patterns = [
-        r"^#\s*Page\s+\d+$",        # # Page 3
-        r"^\d+-\d+$",                # 1-1
-        r"^Page\s+\d+$",             # Page 3
-        r"^\d+$"                     # 3
+        r"^#\s*Page\s+\d+$",  # # Page 3
+        r"^\d+-\d+$",  # 1-1
+        r"^Page\s+\d+$",  # Page 3
+        r"^\d+$",  # 3
     ]
     return any(re.match(p, line.strip(), re.IGNORECASE) for p in patterns)
 
-def merge_paragraphs(lines: list[str], config: ProcessingConfig) -> list[str]:
-    """Merge lines into paragraphs while respecting protected prefixes and typewriter width."""
+
+def is_noisy_boilerplate(line: str) -> bool:
+    """Check if a line matches known variable boilerplate that SHOULD be removed."""
+    patterns = [
+        r"DECLASSIFIED",
+        r"PUBLICLY DISCLOSED",
+        r"MISE EN LECTURE PUBLIQUE",
+        r"DECLASSIFI[EÉ]",
+    ]
+    stripped = line.strip().upper()
+    return any(re.search(p, stripped) for p in patterns)
+
+
+def wrap_lines(lines: list[str], config: ProcessingConfig) -> list[str]:
+    """Wrap long lines while respecting protected prefixes and typewriter width."""
     processed_lines: list[str] = []
-    current_paragraph: list[str] = []
-    
+
     for line in lines:
         stripped = line.strip()
         raw_line = line.rstrip("\n")
-        
+
         if not stripped:
-            if current_paragraph:
-                processed_lines.append(" ".join(current_paragraph))
-                current_paragraph = []
+            # Preserve blank lines
             if processed_lines and processed_lines[-1] != "":
                 processed_lines.append("")
         elif should_protect_line(line, config.protected_prefixes):
-            if current_paragraph:
-                processed_lines.append(" ".join(current_paragraph))
-                current_paragraph = []
+            # Bypass wrapping for protected elements
             processed_lines.append(line.rstrip())
         elif len(raw_line) > config.typewriter_width:
-            # This is a whole unwrapped paragraph
-            if current_paragraph:
-                processed_lines.append(" ".join(current_paragraph))
-                current_paragraph = []
-            processed_lines.append(stripped)
+            # Wrap long lines (flush left for subsequent lines)
+            wrapped = textwrap.wrap(
+                stripped, width=config.typewriter_width, subsequent_indent=""
+            )
+            processed_lines.extend(wrapped)
         else:
-            # Wrapped line, should be merged
-            current_paragraph.append(stripped)
-            
-    if current_paragraph:
-        processed_lines.append(" ".join(current_paragraph))
+            # Preserve shorter lines as they are
+            processed_lines.append(stripped)
+
     return processed_lines
 
+
 def clean_lines(lines: list[str], global_headers: set[str], config: ProcessingConfig) -> list[str]:
-    """Perform header/footer removal and paragraph merging."""
-    # First pass: Filter out headers/footers (except page numbers)
+    """Perform header/footer removal and paragraph wrapping."""
+    # First pass: Filter out headers/footers
     filtered_lines = []
     for line in lines:
         stripped = line.strip()
-        if stripped in global_headers and not is_page_number(stripped):
-            continue
-        filtered_lines.append(line)
         
+        # 1. Always preserve structural markers
+        if is_structural_marker(stripped):
+            filtered_lines.append(line)
+            continue
+            
+        # 2. Always remove noisy variable boilerplate
+        if is_noisy_boilerplate(stripped):
+            continue
+            
+        # 3. Remove statistical headers/footers
+        if stripped in global_headers:
+            continue
+            
+        filtered_lines.append(line)
+
     if not filtered_lines:
         return []
-        
-    processed_lines = merge_paragraphs(filtered_lines, config)
-        
+
+    processed_lines = wrap_lines(filtered_lines, config)
+
     # Final cleanup: ensure exactly one empty line between paragraphs
     final_output: list[str] = []
     for line in processed_lines:
@@ -79,5 +100,5 @@ def clean_lines(lines: list[str], global_headers: set[str], config: ProcessingCo
                 final_output.append("")
         else:
             final_output.append(line)
-            
+
     return final_output
