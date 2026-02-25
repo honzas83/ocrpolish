@@ -68,6 +68,13 @@ def parse_args(args: list[str]) -> ProcessingConfig:
         help="Generate DOCX files in the specified directory, keeping hierarchy.",
     )
 
+    parser.add_argument(
+        "--scan-paragraphs",
+        type=int,
+        default=3,
+        help="Number of paragraphs at top/bottom to scan for headers/footers (default: 3).",
+    )
+
     parser.add_argument("-v", "--verbose", action="store_true", help="Increase output verbosity.")
 
     parsed = parser.parse_args(args)
@@ -82,6 +89,7 @@ def parse_args(args: list[str]) -> ProcessingConfig:
         frequency_file_path=parsed.frequency_file,
         filter_file_path=parsed.filter_file,
         docx_output_dir=parsed.docx,
+        scan_paragraphs=parsed.scan_paragraphs,
     )
 
 

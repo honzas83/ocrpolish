@@ -138,14 +138,14 @@ def is_table_separator(line: str) -> bool:
     # but it MUST contain at least one dash to distinguish from just pipes.
     if "-" not in stripped:
         return False
-    
+
     # Remove leading/trailing pipes if present
     content = stripped
     if content.startswith("|"):
         content = content[1:]
     if content.endswith("|"):
         content = content[:-1]
-    
+
     # After removing pipes, it should only have dashes, colons, and pipes
     remaining = content.replace("-", "").replace(":", "").replace("|", "").replace(" ", "")
     return len(remaining) == 0
@@ -188,7 +188,7 @@ def wrap_lines(lines: list[str], config: ProcessingConfig) -> list[tuple[list[st
                     break
                 table_lines.append(lines[i])
                 i += 1
-            
+
             if table_lines:
                 formatted_table = format_markdown_table(table_lines)
                 blocks.append((formatted_table, False))

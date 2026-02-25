@@ -1,5 +1,7 @@
-from ocrpolish.processor import wrap_lines, ProcessingConfig
 from pathlib import Path
+
+from ocrpolish.processor import ProcessingConfig, wrap_lines
+
 
 def test_table_without_leading_pipe():
     config = ProcessingConfig(input_dir=Path("."), output_dir=Path("."))
@@ -14,7 +16,8 @@ def test_table_without_leading_pipe():
     # and all lines should be aligned/padded.
     assert len(blocks) == 1
     formatted_lines = blocks[0][0]
-    assert len(formatted_lines) == 3
+    expected_lines = 3
+    assert len(formatted_lines) == expected_lines
     assert formatted_lines[0].startswith("|")
     assert formatted_lines[0].endswith("|")
     # Check alignment (roughly)
