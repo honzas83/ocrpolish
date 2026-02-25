@@ -12,48 +12,69 @@ def parse_args(args: list[str]) -> ProcessingConfig:
     parser = argparse.ArgumentParser(
         description="Clean LLM-OCR output by removing headers/footers and reformatting paragraphs."
     )
-    
+
     parser.add_argument("input_dir", type=Path, help="Directory containing raw OCR markdown files.")
     parser.add_argument(
         "output_dir", type=Path, help="Directory where processed files will be saved."
     )
-    
+
     parser.add_argument(
-        "--mask", 
-        type=str, 
-        default="*.md", 
-        help="Glob pattern for files to process (default: *.md)."
+        "--mask",
+        type=str,
+        default="*.md",
+        help="Glob pattern for files to process (default: *.md).",
     )
-    
+
     parser.add_argument(
-        "--threshold", 
-        type=float, 
-        default=0.5, 
-        help="Frequency threshold (0.0-1.0) for header/footer detection (default: 0.5)."
+        "--width",
+        type=int,
+        default=80,
+        help="Typewriter width. Lines longer than this are wrapped (default: 80).",
     )
-    
+
     parser.add_argument(
-        "--width", 
-        type=int, 
-        default=80, 
-        help="Typewriter width. Lines longer than this are wrapped (default: 80)."
+        "--dry-run",
+        action="store_true",
+        help="Identify boilerplate without writing primary output files.",
     )
-    
+
     parser.add_argument(
-        "-v", "--verbose", 
-        action="store_true", 
-        help="Increase output verbosity."
+        "--no-filtered",
+        action="store_false",
+        dest="save_filtered",
+        default=True,
+        help="Disable generation of .filtered.md sidecar files.",
     )
-    
+
+    parser.add_argument(
+        "--frequency-file",
+        type=Path,
+        default=Path("frequency.txt"),
+        help="Path for the consolidated frequency report (within output_dir).",
+    )
+
+    parser.add_argument(
+        "--filter-file",
+        type=Path,
+        default=None,
+        help="Path to a file containing patterns to exclude. No filtering occurs if omitted.",
+    )
+
+    parser.add_argument("-v", "--verbose", action="store_true", help="Increase output verbosity.")
+
     parsed = parser.parse_args(args)
-    
+
     return ProcessingConfig(
         input_dir=parsed.input_dir,
         output_dir=parsed.output_dir,
         input_mask=parsed.mask,
-        threshold=parsed.threshold,
-        typewriter_width=parsed.width
+        typewriter_width=parsed.width,
+        dry_run=parsed.dry_run,
+        save_filtered=parsed.save_filtered,
+        frequency_file_path=parsed.frequency_file,
+        filter_file_path=parsed.filter_file,
     )
+
 
 def main() -> None:
     """Main entry point for the CLI."""
@@ -64,6 +85,7 @@ def main() -> None:
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
