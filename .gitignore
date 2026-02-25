@@ -206,3 +206,9 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 data/
+
+# Feature specific ignores
+NATO_MASS_FILES/
+NATO_MASS_FILES_output/
+filter/
+NPG_PO_20251118.zip

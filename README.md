@@ -31,6 +31,10 @@ python -m ocrpolish.cli [OPTIONS] INPUT_DIR OUTPUT_DIR
 
 - `--mask TEXT`: Glob pattern for files to process (default: `*.md`).
 - `--threshold FLOAT`: Frequency threshold (0.0-1.0) for header detection (default: `0.5`).
+- `--similarity FLOAT`: Similarity threshold (0.0-1.0) for fuzzy matching (default: `0.9`).
+- `--width INTEGER`: Typewriter width for wrapping (default: `80`).
+- `--dry-run`: Identify boilerplate without writing primary output files.
+- `--no-filtered`: Disable generation of `.filtered.md` sidecar files.
 - `-v, --verbose`: Increase output verbosity.
 
 ## Development
