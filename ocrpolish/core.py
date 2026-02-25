@@ -75,10 +75,10 @@ def run_processing(config: ProcessingConfig) -> None:
             # Maintain hierarchy: get relative path from input_dir and join with docx_output_dir
             docx_path = get_output_path(input_file, config.input_dir, config.docx_output_dir)
             docx_path = docx_path.with_suffix(".docx")
-            
+
             ensure_directory_exists(docx_path)
             cleaned_content = "\n".join(cleaned)
-            pages = split_markdown_by_pages(cleaned_content)
+            pages = split_markdown_by_pages(cleaned_content, scan_paragraphs=config.scan_paragraphs)
             create_docx_from_pages(pages, docx_path)
             logger.debug(f"Generated DOCX: {docx_path}")
 

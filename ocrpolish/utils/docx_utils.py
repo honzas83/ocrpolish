@@ -2,36 +2,69 @@ import re
 from pathlib import Path
 
 from docx import Document
-from docx.enum.text import WD_BREAK
+from docx.enum.section import WD_SECTION
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.shared import Pt
 
+from ocrpolish.utils.metadata import FileMetadataAnalyzer, PageMetadata, extract_page_number
 
-def split_markdown_by_pages(content: str) -> list[str]:
+
+def split_markdown_by_pages(content: str, scan_paragraphs: int = 3) -> list[PageMetadata]:
     """
     Split markdown content into pages based on '---' and '# Page X' markers.
-    Ensures markers themselves are removed from the output content.
+    Extracts page metadata (page numbers, potential headers/footers).
     """
-    # Normalize line endings and split by lines to handle markers accurately
+    # Normalize line endings and split by lines
     lines = content.splitlines()
-    pages: list[str] = []
-    current_page: list[str] = []
+    raw_pages: list[list[str]] = []
+    current_page_lines: list[str] = []
 
     for line in lines:
         trimmed = line.strip()
         # Detect page boundaries: '---' or '# Page X'
         if trimmed == "---" or re.match(r"^#\s*Page\s+\d+$", trimmed, re.IGNORECASE):
-            if current_page:
-                pages.append("\n".join(current_page).strip())
-                current_page = []
+            if current_page_lines:
+                raw_pages.append(current_page_lines)
+                current_page_lines = []
             continue
-        
-        current_page.append(line)
 
-    if current_page:
-        pages.append("\n".join(current_page).strip())
+        current_page_lines.append(line)
 
-    # Filter out empty pages to avoid unwanted artifacts
-    return [p for p in pages if p.strip()]
+    if current_page_lines:
+        raw_pages.append(current_page_lines)
+
+    processed_pages: list[PageMetadata] = []
+    for page_lines in raw_pages:
+        if not any(line.strip() for line in page_lines):
+            continue
+
+        metadata = PageMetadata()
+
+        # 1. Extract page number and remove from body if found
+        # We remove ALL instances found on the page to prevent duplication in body
+        remaining_lines = []
+        for line in page_lines:
+            p_num = extract_page_number(line)
+            if p_num is not None:
+                if metadata.page_number is None:
+                    metadata.page_number = p_num
+            else:
+                remaining_lines.append(line)
+
+        if not remaining_lines:
+            continue
+
+        # 2. Identify candidates for repeated headers/footers
+        content_lines = [line for line in remaining_lines if line.strip()]
+
+        if content_lines:
+            metadata.header_candidates = content_lines[:scan_paragraphs]
+            metadata.footer_candidates = content_lines[-scan_paragraphs:]
+            metadata.body_lines = remaining_lines
+
+        processed_pages.append(metadata)
+
+    return processed_pages
 
 
 def calculate_font_size(text: str, base_size: int = 10, max_lines: int = 50) -> float:
@@ -41,135 +74,182 @@ def calculate_font_size(text: str, base_size: int = 10, max_lines: int = 50) -> 
     """
     lines = text.splitlines()
     line_count = len(lines)
-    
+
     if line_count <= max_lines:
         return float(base_size)
-    
+
     # Scale down proportionally if we exceed the target line count
     scale_factor = max_lines / line_count
     # Don't scale below 6pt for readability
     return max(6.0, base_size * scale_factor)
 
 
+def _setup_section_margins(doc: Document) -> None:
+    """Adjust margins to 0.5 inch."""
+    for section in doc.sections:
+        section.top_margin = section.bottom_margin = Pt(36)
+        section.left_margin = section.right_margin = Pt(36)
+
+
+def _apply_page_number(
+    section: "Section",  # type: ignore[name-defined]
+    page_num: int,
+    font_name: str,
+    font_size: float,
+) -> None:
+    """Apply centered page number to header and footer."""
+    text = f"- {page_num} -"
+    
+    # Apply to header
+    header = section.header
+    for p in header.paragraphs:
+        p.text = ""
+    header_para = header.paragraphs[0]
+    header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = header_para.add_run(text)
+    run.font.name = font_name
+    run.font.size = Pt(font_size)
+
+    # Apply to footer
+    footer = section.footer
+    for p in footer.paragraphs:
+        p.text = ""
+    footer_para = footer.paragraphs[0]
+    footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = footer_para.add_run(text)
+    run.font.name = font_name
+    run.font.size = Pt(font_size)
+
+
+def _is_table_start(line: str, next_line: str | None) -> bool:
+    """Check if lines indicate the start of a table."""
+    trimmed = line.strip()
+    if trimmed.startswith("|"):
+        return True
+    if next_line:
+        next_trimmed = next_line.strip()
+        if "|" in line and "-" in next_trimmed and ("|" in next_trimmed or "---" in next_trimmed):
+            return True
+    return False
+
+
+def _render_text_block(
+    doc: Document,
+    text_block: list[str],
+    font_name: str,
+    font_size: float,
+) -> None:
+    """Render a block of text lines as a single paragraph."""
+    if not text_block:
+        return
+    p = doc.add_paragraph()
+    pf = p.paragraph_format
+    pf.line_spacing = 1.0
+    pf.space_before = Pt(0)
+    pf.space_after = Pt(0)
+
+    run = p.add_run()
+    # Manual page breaks removed because we use WD_SECTION.NEW_PAGE
+
+    for j, text_line in enumerate(text_block):
+        run.add_text(text_line)
+        if j < len(text_block) - 1:
+            run.add_break()
+
+    run.font.name = font_name
+    run.font.size = Pt(font_size)
+
+
 def create_docx_from_pages(
-    pages: list[str],
+    pages: list[PageMetadata],
     output_path: Path,
     font_name: str = "Consolas",
     font_size: int = 10,
 ) -> None:
     """
-    Create a DOCX file with optimized performance and tight line spacing.
+    Create a DOCX file with optimized performance and page numbers in headers/footers.
     """
     doc = Document()
-    
-    # Adjust margins slightly to maximize space (0.5 inch margins)
-    for section in doc.sections:
-        section.top_margin = section.bottom_margin = Pt(36)
-        section.left_margin = section.right_margin = Pt(36)
 
-    for i, page_content in enumerate(pages):
+    # Initial setup for first section
+    _setup_section_margins(doc)
+
+    # Render content
+    for i, page_metadata in enumerate(pages):
+        page_content = "\n".join(page_metadata.body_lines).strip()
         dynamic_size = calculate_font_size(page_content, base_size=font_size, max_lines=65)
 
-        # Process lines to detect and render tables vs text
+        # Create/Get section for the page
+        if i == 0:
+            section = doc.sections[0]
+        else:
+            # add_section(WD_SECTION.NEW_PAGE) handles the page break automatically
+            section = doc.add_section(WD_SECTION.NEW_PAGE)
+            section.header.is_linked_to_previous = False
+            section.footer.is_linked_to_previous = False
+            section.top_margin = section.bottom_margin = Pt(36)
+            section.left_margin = section.right_margin = Pt(36)
+
+        # Apply page number to header and footer if extracted
+        if page_metadata.page_number is not None:
+            _apply_page_number(
+                section,
+                page_metadata.page_number,
+                font_name,
+                dynamic_size,
+            )
+
         lines = page_content.splitlines()
         line_idx = 0
-        first_element_on_page = True
         
         while line_idx < len(lines):
             line = lines[line_idx]
-            
-            # Simple table detection
-            is_table = line.strip().startswith("|")
-            if not is_table and line_idx + 1 < len(lines):
-                next_line = lines[line_idx + 1].strip()
-                if "|" in line and "-" in next_line and ("|" in next_line or "---" in next_line):
-                    is_table = True
+            next_line = lines[line_idx + 1] if line_idx + 1 < len(lines) else None
 
-            if is_table:
+            if _is_table_start(line, next_line):
                 table_lines = []
                 while line_idx < len(lines) and "|" in lines[line_idx]:
                     table_lines.append(lines[line_idx])
                     line_idx += 1
-                
-                # Handle page break before table
-                if i > 0 and first_element_on_page:
-                    p_break = doc.add_paragraph()
-                    p_break.paragraph_format.line_spacing = 1.0
-                    p_break.paragraph_format.space_after = Pt(0)
-                    p_break.add_run().add_break(WD_BREAK.PAGE)
-                
+
                 if table_lines:
                     _render_table(doc, table_lines, font_name, dynamic_size)
-                first_element_on_page = False
             else:
-                # Group consecutive plain text lines into ONE paragraph for performance
                 text_block = []
                 while line_idx < len(lines):
                     curr = lines[line_idx]
-                    # Stop if we hit a table
-                    curr_is_table = curr.strip().startswith("|")
-                    if not curr_is_table and line_idx + 1 < len(lines):
-                        next_curr = lines[line_idx + 1].strip()
-                        if "|" in curr and "-" in next_curr and ("|" in next_curr or "---" in next_curr):
-                            curr_is_table = True
-                    
-                    if curr_is_table:
+                    nxt = lines[line_idx + 1] if line_idx + 1 < len(lines) else None
+                    if _is_table_start(curr, nxt):
                         break
-                    
                     text_block.append(curr)
                     line_idx += 1
-                
+
                 if text_block:
-                    p = doc.add_paragraph()
-                    # Set tight spacing
-                    pf = p.paragraph_format
-                    pf.line_spacing = 1.0
-                    pf.space_before = Pt(0)
-                    pf.space_after = Pt(0)
-                    
-                    run = p.add_run()
-                    # Add page break if this is the first block on a non-first page
-                    if i > 0 and first_element_on_page:
-                        run.add_break(WD_BREAK.PAGE)
-                    
-                    # Use explicit line breaks for each line in the block
-                    for j, text_line in enumerate(text_block):
-                        run.add_text(text_line)
-                        if j < len(text_block) - 1:
-                            run.add_break()
-                            
-                    run.font.name = font_name
-                    run.font.size = Pt(dynamic_size)
-                first_element_on_page = False
+                    _render_text_block(
+                        doc,
+                        text_block,
+                        font_name,
+                        dynamic_size,
+                    )
 
     doc.save(str(output_path))
 
 
 def _render_table(doc: Document, table_lines: list[str], font_name: str, font_size: float) -> None:
     """Helper to convert markdown table lines into a native Word table."""
-    # Parse rows and skip separator lines
     rows_data = []
     for line in table_lines:
         stripped = line.strip()
         if not stripped:
             continue
-            
-        # Check if it's a separator line: only contains | - : and whitespace, and has at least one -
-        is_sep = False
+
         if "-" in stripped:
-            # Remove all valid separator characters
             remaining = stripped.replace("|", "").replace("-", "").replace(":", "").replace(" ", "")
             if len(remaining) == 0:
-                is_sep = True
-        
-        if is_sep:
-            continue
-            
-        # Parse content
-        content = stripped
-        if content.startswith("|"): content = content[1:]
-        if content.endswith("|"): content = content[:-1]
-            
+                continue
+
+        content = stripped[1:] if stripped.startswith("|") else stripped
+        content = content[:-1] if content.endswith("|") else content
         cells = [c.strip() for c in content.split("|")]
         rows_data.append(cells)
 
@@ -182,19 +262,15 @@ def _render_table(doc: Document, table_lines: list[str], font_name: str, font_si
     table.autofit = True
 
     for r_idx, row_data in enumerate(rows_data):
-        row = table.rows[r_idx]
-        row_cells = row.cells
+        row_cells = table.rows[r_idx].cells
         for c_idx, cell_value in enumerate(row_data):
             if c_idx < num_cols:
                 cell = row_cells[c_idx]
                 cell.text = cell_value
-                # Apply font styling to the paragraph in the cell
                 for paragraph in cell.paragraphs:
-                    # Set tight spacing for table cells
                     pf = paragraph.paragraph_format
                     pf.line_spacing = 1.0
-                    pf.space_before = Pt(0)
-                    pf.space_after = Pt(0)
+                    pf.space_before = pf.space_after = Pt(0)
                     for run in paragraph.runs:
                         run.font.name = font_name
                         run.font.size = Pt(font_size)

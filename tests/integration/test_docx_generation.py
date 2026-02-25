@@ -17,7 +17,9 @@ def test_docx_generation_flag(tmp_path: Path) -> None:
     test_file.write_text("Page 1\n---\n# Page 2\nPage 2 content", encoding="utf-8")
 
     # Run CLI with --docx DIR
-    with patch.object(sys, "argv", ["ocrpolish", str(input_dir), str(output_dir), "--docx", str(docx_dir)]):
+    with patch.object(
+        sys, "argv", ["ocrpolish", str(input_dir), str(output_dir), "--docx", str(docx_dir)]
+    ):
         main()
 
     docx_file = docx_dir / "test.docx"
@@ -49,7 +51,9 @@ def test_docx_page_content(tmp_path: Path) -> None:
     test_file = input_dir / "test.md"
     test_file.write_text("P1\n---\n# Page 2\nP2", encoding="utf-8")
 
-    with patch.object(sys, "argv", ["ocrpolish", str(input_dir), str(output_dir), "--docx", str(docx_dir)]):
+    with patch.object(
+        sys, "argv", ["ocrpolish", str(input_dir), str(output_dir), "--docx", str(docx_dir)]
+    ):
         main()
 
     docx_file = docx_dir / "test.docx"

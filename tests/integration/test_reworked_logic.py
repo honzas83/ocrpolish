@@ -170,7 +170,7 @@ def test_wrapping_with_blank_lines(tmp_path: Path) -> None:
 
     # Find "- Short item"
     try:
-        short_item_idx = lines.index("- Short item")
+        lines.index("- Short item")
     except ValueError:
         pytest.fail("'- Short item' not found in output")
 
