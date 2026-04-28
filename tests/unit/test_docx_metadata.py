@@ -1,5 +1,6 @@
 from ocrpolish.data_model import PageMetadata
 
+
 def test_page_metadata_init():
     metadata = PageMetadata(
         pdf_page_number=1,

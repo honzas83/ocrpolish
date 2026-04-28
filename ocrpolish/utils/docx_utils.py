@@ -1,13 +1,24 @@
+import re
 from pathlib import Path
 
 from docx import Document
-from docx.section import Section
 from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.section import Section
 from docx.shared import Pt
 
 from ocrpolish.data_model import PageMetadata
 from ocrpolish.utils.metadata import extract_page_number
+
+# XML 1.0 restricted characters: \x00-\x08, \x0b-\x0c, \x0e-\x1f
+ILLEGAL_XML_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def sanitize_xml(text: str) -> str:
+    """Remove characters that are not allowed in XML 1.0."""
+    if not text:
+        return ""
+    return ILLEGAL_XML_CHARS_RE.sub("", text)
 
 
 def split_markdown_by_pages(content: str, scan_paragraphs: int = 3) -> list[PageMetadata]:
@@ -97,6 +108,8 @@ def _add_margin_line(
     if not any([left, center, right]):
         return
 
+    left, center, right = sanitize_xml(left), sanitize_xml(center), sanitize_xml(right)
+
     p = container.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     pf = p.paragraph_format
@@ -181,7 +194,7 @@ def _apply_page_number(
     font_size: float,
 ) -> None:
     """Apply centered page number to header and footer."""
-    text = f"- {page_num} -"
+    text = sanitize_xml(f"- {page_num} -")
     
     # Apply to header
     header = section.header
@@ -235,7 +248,7 @@ def _render_text_block(
     # Manual page breaks removed because we use WD_SECTION.NEW_PAGE
 
     for j, text_line in enumerate(text_block):
-        run.add_text(text_line)
+        run.add_text(sanitize_xml(text_line))
         if j < len(text_block) - 1:
             run.add_break()
 
@@ -354,7 +367,7 @@ def _render_table(doc: Document, table_lines: list[str], font_name: str, font_si
         for c_idx, cell_value in enumerate(row_data):
             if c_idx < num_cols:
                 cell = row_cells[c_idx]
-                cell.text = cell_value
+                cell.text = sanitize_xml(cell_value)
                 for paragraph in cell.paragraphs:
                     pf = paragraph.paragraph_format
                     pf.line_spacing = 1.0

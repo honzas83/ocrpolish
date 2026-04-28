@@ -17,6 +17,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-12
 - Filesystem (input/output directories) (005-docx-generation)
 - Python 3.12 + `python-docx`, `re`, `collections.Counter` (006-docx-header-footer)
 - Python 3.12 + `python-docx`, `click`, `re` (007-docx-header-footer-enhancement)
+- Python 3.12 + `click`, `ollama` (Python library), `pydantic`, `pyyaml` (008-ollama-metadata-extraction)
+- Filesystem (recursive input/output directory mirroring) (008-ollama-metadata-extraction)
 
 - Python 3.12 + `click` (CLI), `pathlib` (filesystem), `typing` (type hints) (001-ocr-post-processing)
 
@@ -36,9 +38,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.12: Follow standard conventions
 
 ## Recent Changes
+- 008-ollama-metadata-extraction: Added Python 3.12 + `click`, `ollama` (Python library), `pydantic`, `pyyaml`
 - 007-docx-header-footer-enhancement: Added Python 3.12 + `python-docx`, `click`, `re`
 - 006-docx-header-footer: Added Python 3.12 + `python-docx`, `re`, `collections.Counter`
-- 005-docx-generation: Added Python 3.12 + `python-docx` (New), `argparse`, `pathlib`
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -4,11 +4,11 @@ A specialized toolkit for cleaning, formatting, and validating OCR outputs proce
 
 ## Features
 
+- **Metadata Extraction (Ollama)**: Automatically extracts structured metadata (author, date, archive code, etc.) using local LLMs and prepends it as YAML frontmatter.
 - **Statistical Header/Footer Removal**: Detects and removes repeating boilerplate text across large document sets.
-- **Smart Paragraph Wrapping**: Automatically wraps lines exceeding the `typewriter_width` while preserving existing line breaks for shorter lines.
-- **Markdown Protection**: Lines starting with `-`, `*`, `#`, `>`, or `|` are never wrapped to preserve lists and tables.
+- **Smart Paragraph Wrapping**: Automatically wraps long lines while preserving lists, tables, and structural markers.
 - **Directory Mirroring**: Replicates the input directory structure in the output directory.
-- **2-Pass Processing**: Efficiently handles large datasets by identifying global patterns before transformation.
+- **DOCX Generation**: Converts cleaned Markdown to DOCX with preserved structure.
 
 ## Installation
 
@@ -16,28 +16,41 @@ A specialized toolkit for cleaning, formatting, and validating OCR outputs proce
 pip install .
 ```
 
-For development:
+### Metadata Prerequisites
+The metadata extraction feature requires [Ollama](https://ollama.com/) to be installed and running locally.
 ```bash
-pip install ruff flake8 mypy pytest coverage
+ollama pull gemma4:26b
 ```
 
 ## Usage
 
+The toolkit provides two primary commands: `clean` and `metadata`.
+
+### Cleaning OCR Text
+Removes headers/footers and reformats paragraphs.
+
 ```bash
-python -m ocrpolish.cli [OPTIONS] INPUT_DIR OUTPUT_DIR
+ocrpolish clean [OPTIONS] INPUT_DIR OUTPUT_DIR
 ```
 
-### Options
-
+#### Options
 - `--mask TEXT`: Glob pattern for files to process (default: `*.md`).
-- `--threshold FLOAT`: Frequency threshold (0.0-1.0) for header detection (default: `0.5`).
-- `--similarity FLOAT`: Similarity threshold (0.0-1.0) for fuzzy matching (default: `0.9`).
 - `--width INTEGER`: Typewriter width for wrapping (default: `80`).
 - `--dry-run`: Identify boilerplate without writing primary output files.
-- `--no-filtered`: Disable generation of `.filtered.md` sidecar files.
-- `--docx DOCX_DIR`: Generate DOCX files in the specified directory, keeping hierarchy.
-- `--scan-paragraphs INTEGER`: Number of paragraphs at top/bottom to scan for headers/footers (default: 3).
-- `-v, --verbose`: Increase output verbosity.
+- `--docx DOCX_DIR`: Generate DOCX files in the specified directory.
+
+### Extracting Metadata
+Extracts structured data using a local LLM.
+
+```bash
+ocrpolish metadata [OPTIONS] INPUT_DIR OUTPUT_DIR
+```
+
+#### Options
+- `--model TEXT`: The Ollama model to use (default: `gemma4:26b`).
+- `--ollama-url TEXT`: URL of the Ollama server (default: `http://localhost:11434`).
+- `--recursive / --no-recursive`: Process subdirectories (default: `recursive`).
+- `--overwrite`: Overwrite existing files in output directory.
 
 ## Development
 
