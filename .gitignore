@@ -212,3 +212,7 @@ NATO_MASS_FILES/
 NATO_MASS_FILES_output/
 filter/
 NPG_PO_20251118.zip
+NATO_NPG/
+NATO_NPG_metadata/
+frequency.txt
+*.filtered.md

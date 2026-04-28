@@ -157,7 +157,7 @@ def run_processing(config: ProcessingConfig) -> None:
         logger.info("No filter file provided or file empty. Proceeding without filtering.")
 
     freq_store = FrequencyStore()
-    files = list(scan_files(config.input_dir, config.input_mask))
+    files = sorted(list(scan_files(config.input_dir, config.input_mask)))
 
     logger.info(f"Processing {len(files)} files...")
 

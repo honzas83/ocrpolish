@@ -10,11 +10,13 @@ FREQUENCY_THRESHOLD = 5
 
 
 def scan_files(input_dir: Path, mask: str = "*.md") -> Iterator[Path]:
-    """Recursively scan input_dir for files matching the mask."""
+    """Recursively scan input_dir for files matching the mask, excluding sidecar .filtered.md files."""
     if not input_dir.exists():
         raise FileNotFoundError(f"Input directory not found: {input_dir}")
 
-    return input_dir.rglob(mask)
+    for path in input_dir.rglob(mask):
+        if not path.name.endswith(".filtered.md"):
+            yield path
 
 
 def get_output_path(input_file: Path, input_dir: Path, output_dir: Path) -> Path:

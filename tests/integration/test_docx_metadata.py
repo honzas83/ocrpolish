@@ -1,8 +1,11 @@
 import sys
 from pathlib import Path
 from unittest.mock import patch
+
 from docx import Document
+
 from ocrpolish.cli import main
+
 
 def test_docx_page_number_extraction(tmp_path: Path) -> None:
     input_dir = tmp_path / "input"
