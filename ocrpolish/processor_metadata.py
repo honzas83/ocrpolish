@@ -1,6 +1,8 @@
 import logging
+import re
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 from ocrpolish.models.metadata import LastDateSchema, MetadataSchema
 from ocrpolish.services.ollama_client import OllamaClient
@@ -8,7 +10,6 @@ from ocrpolish.utils.metadata import (
     flatten_metadata,
     format_as_callout,
     normalize_obsidian_tags,
-    prepend_frontmatter,
 )
 
 logger = logging.getLogger(__name__)
@@ -17,21 +18,22 @@ logger = logging.getLogger(__name__)
 CHUNK_SIZE = 6000
 LARGE_DOC_THRESHOLD = 8000
 
+
 class MetadataProcessor:
     def __init__(
-        self, 
-        ollama_client: OllamaClient, 
-        output_dir: Path, 
+        self,
+        ollama_client: OllamaClient,
+        output_dir: Path,
         overwrite: bool = False,
         vault_root: Path | None = None,
-        pdf_dir: Path | None = None
+        pdf_dir: Path | None = None,
     ):
         self.client = ollama_client
         self.output_dir = output_dir
         self.overwrite = overwrite
         self.vault_root = vault_root
         self.pdf_dir = pdf_dir
-        self.tag_counts = Counter()
+        self.tag_counts: Counter[str] = Counter()
 
     def _get_pdf_link(self, input_file: Path) -> str:
         """Calculates the Obsidian-style link to the source PDF."""
@@ -50,20 +52,32 @@ class MetadataProcessor:
             logger.warning(f"Could not calculate relative path to PDF: {e}")
             return f"[[{pdf_filename}]]"
 
-    def _prepare_obsidian_metadata(self, raw_dict: dict, input_file: Path) -> dict:
+    def _prepare_obsidian_metadata(
+        self, raw_dict: dict[str, Any], input_file: Path
+    ) -> dict[str, Any]:
         """Prepares the metadata dictionary for Obsidian output."""
-        # 1. Standardize tags
+        # 1. Strip 'correspondence_' prefix from all keys
+        clean_dict: dict[str, Any] = {}
+        for k, v in raw_dict.items():
+            new_key = k.removeprefix("correspondence_")
+            clean_dict[new_key] = v
+        raw_dict = clean_dict
+
+        # 2. Standardize tags
         if raw_dict.get("tags"):
             raw_dict["tags"] = normalize_obsidian_tags(raw_dict["tags"])
 
-        # 2. Add source PDF link
+        # 3. Add source PDF link
         raw_dict["source"] = self._get_pdf_link(input_file)
 
-        # 3. Define primary field order and extract them
+        # 4. Define primary field order and extract them
         primary_keys = [
             "title",
             "summary",
             "abstract",
+            "sender",
+            "recipient",
+            "transaction",
             "author_name",
             "author_institution",
             "date",
@@ -77,11 +91,16 @@ class MetadataProcessor:
         metadata_dict = {}
         for k in primary_keys:
             if k in raw_dict:
-                metadata_dict[k] = raw_dict.pop(k)
+                val = raw_dict.pop(k)
+                # Only add if value is not "empty"
+                if val not in (None, "", [], {}):
+                    metadata_dict[k] = val
 
-        # 4. Flatten the remaining fields
+        # 5. Flatten the remaining fields and filter them
         flattened_remainder = flatten_metadata(raw_dict)
-        metadata_dict.update(flattened_remainder)
+        for k, v in flattened_remainder.items():
+            if v not in (None, "", [], {}):
+                metadata_dict[k] = v
         return metadata_dict
 
     def process_file(
@@ -96,6 +115,10 @@ class MetadataProcessor:
 
         try:
             content = input_file.read_text(encoding="utf-8")
+            from ocrpolish.utils.metadata import parse_frontmatter, stringify_frontmatter
+
+            # 1. Separate existing frontmatter from body
+            existing_metadata, original_body = parse_frontmatter(content)
 
             # Prepare tag context if available
             tag_context = ""
@@ -115,7 +138,7 @@ class MetadataProcessor:
                 "1. 'title' must be extracted carefully. It is usually on the first page, "
                 "but could also be part of the second page. The title should make sense "
                 "in the context of the summary and abstract.\n"
-                "2. 'summary' must be exactly two sentences. It must be an independent entity.\n"
+                "2. 'summary' must be exactly one sentence. It must be an independent entity.\n"
                 "3. 'abstract' must be a detailed overview, limited to at most 20 sentences. "
                 "It must be a superset of the summary.\n"
                 "4. 'mentioned_states' must only contain full names of nation states.\n"
@@ -144,9 +167,7 @@ class MetadataProcessor:
 
             # Phase 2: Secondary Pass for Date (only if missing and document is large)
             if not raw_dict.get("date") and len(content) > LARGE_DOC_THRESHOLD:
-                logger.info(
-                    f"Date missing from first chunk of {input_file.name}. Scanning end..."
-                )
+                logger.info(f"Date missing from first chunk of {input_file.name}. Scanning end...")
                 last_chunk = content[-CHUNK_SIZE:]
                 date_prompt = (
                     f"Document Content (Final Part):\n\n{last_chunk}\n\n"
@@ -160,17 +181,65 @@ class MetadataProcessor:
                 except Exception as e:
                     logger.warning(f"Secondary date extraction failed: {e}")
 
-            # Prepare metadata for Obsidian
-            metadata_dict = self._prepare_obsidian_metadata(raw_dict, input_file)
+            # Prepare metadata for Obsidian (standardization, flattening, prefix removal)
+            # We merge with existing metadata here
+            combined_raw = {**existing_metadata, **raw_dict}
+            metadata_dict = self._prepare_obsidian_metadata(combined_raw, input_file)
 
-            # Insert Abstract Callout (User Story 4)
-            abstract_text = metadata_dict.get("abstract", "")
-            if abstract_text:
-                callout = format_as_callout(abstract_text)
-                content = callout + content
+            # User Story 2: Move title and abstract to body callout
+            # We keep title in frontmatter for searchability (as requested), 
+            # but move abstract exclusively to the body.
+            title = metadata_dict.get("title", "")
+            abstract = metadata_dict.pop("abstract", "")
 
-            # Prepend metadata to original content
-            new_content = prepend_frontmatter(content, metadata_dict)
+            # Build the callout block
+            body_prefix = ""
+            if title or abstract:
+                callout_body = ""
+                if title:
+                    callout_body += f"# {title}\n\n"
+                if abstract:
+                    callout_body += f"{abstract}"
+
+                # Wrap in callout
+                body_prefix = format_as_callout(callout_body, title="", callout_type="abstract")
+
+            # Combine everything: [Frontmatter] + [Callout] + [Original Body]
+            frontmatter_str = stringify_frontmatter(metadata_dict)
+
+            # Clean up original body: remove leading whitespace and any horizontal rules
+            # or duplicate titles that might cause clutter
+            original_body = original_body.lstrip()
+
+            # Pattern to match horizontal rules or headers that match the title
+            # (e.g., "---", "# Title", "## Title")
+            while True:
+                start_len = len(original_body)
+
+                # Remove horizontal rules
+                if original_body.startswith("---"):
+                    original_body = re.sub(r"^---\s*", "", original_body)
+
+                # Remove title headers
+                if title:
+                    # Escape title for regex
+                    escaped_title = re.escape(title)
+                    # Match optional header symbols, the title, and optional following space/newline
+                    original_body = re.sub(
+                        rf"^(#+\s+)?{escaped_title}\s*\n?", "", original_body, flags=re.IGNORECASE
+                    )
+
+                # If length didn't change, we're done cleaning
+                if len(original_body) == start_len:
+                    break
+                original_body = original_body.lstrip()
+
+            # Construct final content with proper spacing
+            # frontmatter_str ends with \n, so we add another \n if both exist
+            if frontmatter_str and body_prefix:
+                new_content = frontmatter_str + "\n" + body_prefix + original_body
+            else:
+                new_content = frontmatter_str + body_prefix + original_body
 
             # Ensure output is .md (Task T010)
             output_file = output_file.with_suffix(".md")
@@ -195,11 +264,11 @@ class MetadataProcessor:
         """
         files = sorted(self.get_files(input_dir, recursive))
         logger.info(f"Found {len(files)} markdown files in {input_dir}")
-        
+
         for input_file in files:
             relative_path = input_file.relative_to(input_dir)
             output_file = self.output_dir / relative_path
-            
+
             # Get 50 most frequent tags
             frequent_tags = [tag for tag, _ in self.tag_counts.most_common(50)]
             self.process_file(input_file, output_file, frequent_tags)

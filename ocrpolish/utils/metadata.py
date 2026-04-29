@@ -2,7 +2,7 @@ import re
 from collections import Counter
 from typing import Any
 
-import yaml
+import yaml  # type: ignore
 
 from ocrpolish.data_model import PageMetadata
 
@@ -11,16 +11,16 @@ def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     """
     Parses YAML frontmatter from a string.
     Only consumes the frontmatter if it is a valid YAML dictionary.
-    
+
     Args:
         content: The content of the file.
-        
+
     Returns:
         A tuple containing (metadata_dict, body_content).
     """
     if not content.startswith("---"):
         return {}, content
-    
+
     # Split by lines that are exactly '---'
     parts = re.split(r"^---\s*$", content, maxsplit=2, flags=re.MULTILINE)
 
@@ -28,14 +28,14 @@ def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     if len(parts) < expected_parts:
         # Not a complete frontmatter block
         return {}, content
-    
+
     try:
         metadata = yaml.safe_load(parts[1])
         if isinstance(metadata, dict):
             return metadata, parts[2].lstrip()
     except yaml.YAMLError:
         pass
-        
+
     # If not a dict or failed to parse, it's just content that happens to have ---
     return {}, content
 
@@ -46,7 +46,7 @@ def stringify_frontmatter(metadata: dict[str, Any]) -> str:
     """
     if not metadata:
         return ""
-    
+
     yaml_str = yaml.safe_dump(metadata, sort_keys=False, allow_unicode=True)
     return f"---\n{yaml_str}---\n"
 
@@ -58,14 +58,14 @@ def prepend_frontmatter(content: str, metadata: dict[str, Any]) -> str:
     """
     existing_metadata, body = parse_frontmatter(content)
     merged_metadata = {**existing_metadata, **metadata}
-    
+
     if not merged_metadata:
         return content
-    
+
     yaml_str = yaml.safe_dump(merged_metadata, sort_keys=False, allow_unicode=True)
-    
+
     # Standard Obsidian frontmatter format
-    return f"---\n{yaml_str}---\n\n{body.lstrip()}"
+    return f"---\n{yaml_str}---\n{body.lstrip()}"
 
 
 def flatten_metadata(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -87,6 +87,7 @@ def normalize_obsidian_tags(tags: list[str]) -> list[str]:
     Normalizes tags for Obsidian YAML frontmatter:
     - Removes '#' prefix.
     - Removes spaces (if any left).
+    - Prefixes numeric-only tags with 'Year'.
     """
     normalized = []
     for tag in tags:
@@ -94,6 +95,11 @@ def normalize_obsidian_tags(tags: list[str]) -> list[str]:
         clean_tag = tag.strip().lstrip("#")
         # Remove internal spaces just in case
         clean_tag = clean_tag.replace(" ", "")
+
+        # Prefix numeric tags with 'Year'
+        if clean_tag.isdigit():
+            clean_tag = f"Year{clean_tag}"
+
         if clean_tag:
             normalized.append(clean_tag)
     return normalized
@@ -120,7 +126,7 @@ class FileMetadataAnalyzer:
 
     def analyze(self, pages: list[PageMetadata]) -> set[frozenset[str]]:
         """Identify boilerplate patterns across multiple pages."""
-        pattern_counts = Counter()
+        pattern_counts: Counter[str] = Counter()
         total_pages = len(pages)
 
         for page in pages:

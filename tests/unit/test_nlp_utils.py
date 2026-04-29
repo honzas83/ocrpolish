@@ -14,14 +14,17 @@ def test_get_word_set() -> None:
     # Case normalization
     assert "The" not in word_set
 
+
 def test_overlap_coefficient_identical() -> None:
     s = frozenset(["a", "b", "c"])
     assert overlap_coefficient(s, s) == 1.0
+
 
 def test_overlap_coefficient_different() -> None:
     s1 = frozenset(["a", "b"])
     s2 = frozenset(["c", "d"])
     assert overlap_coefficient(s1, s2) == 0.0
+
 
 def test_overlap_coefficient_partial() -> None:
     s1 = get_word_set("The quick brown fox")

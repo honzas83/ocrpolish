@@ -27,27 +27,27 @@ def analyze_page_metadata(
 ) -> PageMetadata:
     """Analyze a single page for markers and filtered metadata."""
     metadata = PageMetadata(pdf_page_number=pdf_page_num)
-    
+
     # 1. Find all -X- markers
     marker_indices = []
     for idx, line in enumerate(lines):
         if extract_page_number(line) is not None:
             marker_indices.append(idx)
-            
+
     if not marker_indices:
         metadata.body_lines = lines
         return metadata
 
     first_marker_idx = marker_indices[0]
     last_marker_idx = marker_indices[-1]
-    
+
     metadata.original_page_number = extract_page_number(lines[first_marker_idx])
-    
+
     # Nearness window
     window = 5
-    
+
     to_remove = set(marker_indices)
-    
+
     # If there's only one marker, decide if it's header or footer based on position
     is_only_one = len(marker_indices) == 1
     marker_is_header = True
@@ -67,7 +67,7 @@ def analyze_page_metadata(
                 # Check if it's closer to the first or last marker
                 dist_first = abs(idx - first_marker_idx)
                 dist_last = abs(idx - last_marker_idx)
-                
+
                 if not is_only_one:
                     if dist_first <= dist_last:
                         if idx < first_marker_idx:
@@ -105,17 +105,17 @@ def analyze_page_metadata(
         if is_filtered_line(line, filter_list):
             continue
         body_lines.append(line)
-        
+
     metadata.body_lines = body_lines
     return metadata
 
 
 def split_into_raw_pages(lines: list[str]) -> list[tuple[int, list[str]]]:
     """Split lines into raw blocks based on # Page N markers."""
-    pages = []
-    current_page = []
+    pages: list[tuple[int, list[str]]] = []
+    current_page: list[str] = []
     current_pdf_num = 1
-    
+
     for line in lines:
         trimmed = line.strip()
         match = re.match(r"^#\s*Page\s+(\d+)$", trimmed, re.IGNORECASE)
@@ -124,24 +124,24 @@ def split_into_raw_pages(lines: list[str]) -> list[tuple[int, list[str]]]:
             if any(line_ref.strip() for line_ref in current_page):
                 pages.append((current_pdf_num, current_page))
             elif pages:
-                # Special case: consecutive markers. 
+                # Special case: consecutive markers.
                 # If we have content-less pages, the spec says to include them
                 # but only if it's explicitly # Page N.
                 # '---' followed by '# Page N' should probably be one page break.
                 pass
-            
+
             if match:
                 current_pdf_num = int(match.group(1))
             else:
                 current_pdf_num += 1
-                
+
             current_page = []
             continue
         current_page.append(line)
-        
+
     if any(line_ref.strip() for line_ref in current_page):
         pages.append((current_pdf_num, current_page))
-        
+
     return pages
 
 
@@ -200,15 +200,15 @@ def run_processing(config: ProcessingConfig) -> None:
 
             raw_pages = split_into_raw_pages(lines)
             processed_pages = []
-            
+
             for pdf_num, page_lines in raw_pages:
                 metadata = analyze_page_metadata(page_lines, pdf_num, filter_list)
-                
+
                 # Wrap body lines for DOCX specifically
                 if metadata.body_lines:
                     blocks = wrap_lines(metadata.body_lines, config)
                     metadata.body_lines = format_blocks(blocks)
-                
+
                 processed_pages.append(metadata)
 
             create_docx_from_pages(processed_pages, docx_path)

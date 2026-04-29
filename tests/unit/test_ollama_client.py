@@ -6,12 +6,8 @@ def create_mock_ollama_response(content: str) -> dict[str, Any]:
     """
     Creates a mock response object compatible with the ollama client chat response.
     """
-    return {
-        "message": {
-            "content": content,
-            "role": "assistant"
-        }
-    }
+    return {"message": {"content": content, "role": "assistant"}}
+
 
 class MockOllamaClient:
     def __init__(self, return_value: str):

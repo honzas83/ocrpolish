@@ -1,10 +1,10 @@
 import re
 from pathlib import Path
+from typing import Any, Iterator
 
 from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.section import Section
 from docx.shared import Pt
 
 from ocrpolish.data_model import PageMetadata
@@ -14,7 +14,7 @@ from ocrpolish.utils.metadata import extract_page_number
 ILLEGAL_XML_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
-def sanitize_xml(text: str) -> str:
+def sanitize_xml(text: str | None) -> str:
     """Remove characters that are not allowed in XML 1.0."""
     if not text:
         return ""
@@ -58,8 +58,8 @@ def split_markdown_by_pages(content: str, scan_paragraphs: int = 3) -> list[Page
         for line in page_lines:
             p_num = extract_page_number(line)
             if p_num is not None:
-                if metadata.page_number is None:
-                    metadata.page_number = p_num
+                if metadata.original_page_number is None:
+                    metadata.original_page_number = p_num
             else:
                 remaining_lines.append(line)
 
@@ -97,7 +97,7 @@ def calculate_font_size(text: str, base_size: int = 10, max_lines: int = 50) -> 
 
 
 def _add_margin_line(
-    container: "Section", # type: ignore
+    container: Any,
     left: str = "",
     center: str = "",
     right: str = "",
@@ -131,7 +131,7 @@ def _add_margin_line(
 
 
 def _apply_header_footer_metadata(
-    section: Section,
+    section: Any,
     metadata: PageMetadata,
     font_name: str,
     font_size: float,
@@ -173,12 +173,14 @@ def _apply_header_footer_metadata(
     pdf_label = f"PDF Page {metadata.pdf_page_number}" if metadata.pdf_page_number else ""
 
     # Footer Line 1: Original Page Number (Centered) + PDF Page N (Right)
-    _add_margin_line(footer, center=center_marker, right=pdf_label, font_name=font_name, font_size=font_size)
+    _add_margin_line(
+        footer, center=center_marker, right=pdf_label, font_name=font_name, font_size=font_size
+    )
     # Footer Line 2: Concatenated Metadata (Centered)
     _add_margin_line(footer, center=footer_metadata_str, font_name=font_name, font_size=font_size)
 
 
-def _setup_section_margins(doc: Document) -> None:
+def _setup_section_margins(doc: Any) -> None:
     """Adjust margins to optimize space (0.3" top/bottom, 0.5" sides)."""
     for section in doc.sections:
         # Reduced to 0.3 inch
@@ -188,14 +190,14 @@ def _setup_section_margins(doc: Document) -> None:
 
 
 def _apply_page_number(
-    section: "Section",  # type: ignore[name-defined]
+    section: Any,
     page_num: int,
     font_name: str,
     font_size: float,
 ) -> None:
     """Apply centered page number to header and footer."""
     text = sanitize_xml(f"- {page_num} -")
-    
+
     # Apply to header
     header = section.header
     for p in header.paragraphs:
@@ -230,7 +232,7 @@ def _is_table_start(line: str, next_line: str | None) -> bool:
 
 
 def _render_text_block(
-    doc: Document,
+    doc: Any,
     text_block: list[str],
     font_name: str,
     font_size: float,
@@ -299,10 +301,10 @@ def create_docx_from_pages(
 
         lines = page_content.splitlines()
         line_idx = 0
-        
+
         if not lines:
             doc.add_paragraph()
-        
+
         while line_idx < len(lines):
             line = lines[line_idx]
             next_line = lines[line_idx + 1] if line_idx + 1 < len(lines) else None
@@ -336,7 +338,7 @@ def create_docx_from_pages(
     doc.save(str(output_path))
 
 
-def _render_table(doc: Document, table_lines: list[str], font_name: str, font_size: float) -> None:
+def _render_table(doc: Any, table_lines: list[str], font_name: str, font_size: float) -> None:
     """Helper to convert markdown table lines into a native Word table."""
     rows_data = []
     for line in table_lines:

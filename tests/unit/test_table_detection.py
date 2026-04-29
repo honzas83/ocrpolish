@@ -1,16 +1,17 @@
 from pathlib import Path
 
-from ocrpolish.processor import ProcessingConfig, wrap_lines
+from ocrpolish.data_model import ProcessingConfig
+from ocrpolish.processor import wrap_lines
 
 
-def test_table_without_leading_pipe():
+def test_table_without_leading_pipe() -> None:
     config = ProcessingConfig(input_dir=Path("."), output_dir=Path("."))
     lines = [
         "Header 1 | Header 2 | Header 3",
         "--- | --- | ---",
-        "Row 1 Col 1 | Row 1 Col 2 | Row 1 Col 3"
+        "Row 1 Col 1 | Row 1 Col 2 | Row 1 Col 3",
     ]
-    
+
     blocks = wrap_lines(lines, config)
     # If correctly detected as a table, it should be one block with 3 lines
     # and all lines should be aligned/padded.

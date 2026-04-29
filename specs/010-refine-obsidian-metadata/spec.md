@@ -60,7 +60,11 @@ As a researcher, I want the summary and abstract to be presented in a specific f
 - **FR-001**: The system MUST rename all frontmatter keys starting with `correspondence_` by removing that prefix (e.g., `correspondence_from` -> `from`).
 - **FR-002**: The system MUST ensure the `summary` metadata field contains only a single sentence.
 - **FR-003**: The system MUST remove the `abstract` field from the YAML frontmatter.
-- **FR-004**: The system MUST insert the `abstract` text into the markdown body, ideally at the very beginning under a header or as a block.
+- **FR-004**: The system MUST insert the `title` and `abstract` text into an Obsidian `[!abstract]` callout block at the start of the markdown body.
+- **FR-007**: The system MUST insert the extracted `title` as a level 1 header (e.g., `# Title`) inside the callout block, followed by the `abstract` text.
+- **FR-008**: The system MUST ensure there is an empty line between the YAML frontmatter and the callout block, and another empty line between the callout block and the original body content.
+- **FR-009**: The system MUST NOT insert a horizontal rule (`---`) after the callout block.
+- **FR-010**: The system MUST aggressively clean the original document body by removing any leading horizontal rules or duplicate titles (plain text or Markdown headers) that match the extracted title.
 - **FR-005**: The system MUST remove any metadata attributes (YAML keys) that have empty or null values.
 - **FR-006**: The system MUST transform any numeric-only tags (e.g., `1968`) by prefixing them with `Year` (e.g., `Year1968`) to ensure Obsidian compatibility.
 
