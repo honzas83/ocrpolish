@@ -44,6 +44,7 @@ Python 3.12: Follow standard conventions
 
 
 <!-- MANUAL ADDITIONS START -->
+- **Repository Integrity:** NEVER add large data files (PDFs, images, or large Markdown datasets) to the repository. Always ensure such directories are ignored via `.gitignore`.
 <!-- MANUAL ADDITIONS END -->
 
 <!-- SPECKIT START -->
