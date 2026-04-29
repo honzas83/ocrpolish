@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ocrpolish.cli import parse_args
+from ocrpolish.data_model import ProcessingConfig
 from ocrpolish.utils.files import ensure_directory_exists, get_output_path, scan_files
 
 
@@ -21,7 +21,8 @@ def test_directory_mirroring(tmp_path: Path) -> None:
         f.write_text("content")
 
     # Execution
-    config = parse_args([str(input_dir), str(output_dir)])
+    # Create config directly since parse_args is removed/refactored
+    config = ProcessingConfig(input_dir=input_dir, output_dir=output_dir)
     expected_md_files = 3
     files = list(scan_files(config.input_dir, config.input_mask))
 

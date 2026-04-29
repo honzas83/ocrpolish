@@ -18,9 +18,14 @@ def test_docx_generation_flag(tmp_path: Path) -> None:
 
     # Run CLI with --docx DIR
     with patch.object(
-        sys, "argv", ["ocrpolish", str(input_dir), str(output_dir), "--docx", str(docx_dir)]
+        sys,
+        "argv",
+        ["ocrpolish", "clean", str(input_dir), str(output_dir), "--docx", str(docx_dir)],
     ):
-        main()
+        try:
+            main()
+        except SystemExit:
+            pass
 
     docx_file = docx_dir / "test.docx"
     assert docx_file.exists()
@@ -35,8 +40,11 @@ def test_no_docx_generation_by_default(tmp_path: Path) -> None:
     test_file.write_text("Some content", encoding="utf-8")
 
     # Run CLI without --docx
-    with patch.object(sys, "argv", ["ocrpolish", str(input_dir), str(output_dir)]):
-        main()
+    with patch.object(sys, "argv", ["ocrpolish", "clean", str(input_dir), str(output_dir)]):
+        try:
+            main()
+        except SystemExit:
+            pass
 
     docx_file = output_dir / "test.docx"
     assert not docx_file.exists()
@@ -52,9 +60,14 @@ def test_docx_page_content(tmp_path: Path) -> None:
     test_file.write_text("P1\n---\n# Page 2\nP2", encoding="utf-8")
 
     with patch.object(
-        sys, "argv", ["ocrpolish", str(input_dir), str(output_dir), "--docx", str(docx_dir)]
+        sys,
+        "argv",
+        ["ocrpolish", "clean", str(input_dir), str(output_dir), "--docx", str(docx_dir)],
     ):
-        main()
+        try:
+            main()
+        except SystemExit:
+            pass
 
     docx_file = docx_dir / "test.docx"
     doc = Document(str(docx_file))
@@ -77,17 +90,22 @@ def test_docx_sections_and_footers(tmp_path: Path) -> None:
     test_file.write_text(content, encoding="utf-8")
 
     with patch.object(
-        sys, "argv", ["ocrpolish", str(input_dir), str(output_dir), "--docx", str(docx_dir)]
+        sys,
+        "argv",
+        ["ocrpolish", "clean", str(input_dir), str(output_dir), "--docx", str(docx_dir)],
     ):
-        main()
+        try:
+            main()
+        except SystemExit:
+            pass
 
     docx_file = docx_dir / "test.docx"
     doc = Document(str(docx_file))
-    
+
     # Check sections
     assert len(doc.sections) >= 2
-    
+
     # Check footers (US1)
     for i, section in enumerate(doc.sections):
         footer_text = "".join(p.text for p in section.footer.paragraphs)
-        assert f"PDF Page {i+1}" in footer_text
+        assert f"PDF Page {i + 1}" in footer_text

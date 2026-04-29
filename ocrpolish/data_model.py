@@ -35,6 +35,7 @@ class FrequencyEntry:
 @dataclass
 class PageMetadata:
     """Metadata for a single logical page in DOCX export."""
+
     pdf_page_number: int | None = None
     original_page_number: int | None = None
     header_left: list[str] = field(default_factory=list)

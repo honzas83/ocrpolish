@@ -1,16 +1,17 @@
 from ocrpolish.models.metadata import MetadataSchema
 
 
-def test_metadata_schema_defaults():
+def test_metadata_schema_defaults() -> None:
     # Test that all fields have reasonable defaults and are not None
     schema = MetadataSchema()
     assert schema.language == "English"
     assert schema.summary == ""
     assert schema.title == ""
     assert schema.mentioned_states == []
-    assert schema.correspondence_sender == ""
+    assert schema.sender == ""
 
-def test_metadata_schema_valid_data():
+
+def test_metadata_schema_valid_data() -> None:
     data = {
         "title": "Test Title",
         "language": "French",
@@ -19,7 +20,7 @@ def test_metadata_schema_valid_data():
         "summary": "First sentence. Second sentence.",
         "abstract": "First sentence. Second sentence. More detail.",
         "author_name": "D.A. NICHOLLS",
-        "mentioned_states": ["Greece"]
+        "mentioned_states": ["Greece"],
     }
     schema = MetadataSchema(**data)
     assert schema.title == "Test Title"
@@ -29,13 +30,10 @@ def test_metadata_schema_valid_data():
     assert schema.abstract == "First sentence. Second sentence. More detail."
     assert "Greece" in schema.mentioned_states
 
-def test_metadata_schema_flattened_correspondence():
-    data = {
-        "correspondence_sender": "Sender X",
-        "correspondence_recipient": "Recipient Y",
-        "correspondence_transaction": "Action Z"
-    }
+
+def test_metadata_schema_flattened_correspondence() -> None:
+    data = {"sender": "Sender X", "recipient": "Recipient Y", "transaction": "Action Z"}
     schema = MetadataSchema(**data)
-    assert schema.correspondence_sender == "Sender X"
-    assert schema.correspondence_recipient == "Recipient Y"
-    assert schema.correspondence_transaction == "Action Z"
+    assert schema.sender == "Sender X"
+    assert schema.recipient == "Recipient Y"
+    assert schema.transaction == "Action Z"

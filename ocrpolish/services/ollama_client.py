@@ -10,6 +10,7 @@ T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 
+
 class OllamaClient:
     def __init__(self, model: str = "gemma4:26b", host: str = "http://localhost:11434"):
         self.model = model
@@ -22,7 +23,7 @@ class OllamaClient:
         """
         attempt = 0
         last_error = None
-        
+
         while attempt <= retries:
             try:
                 response = self.client.chat(
@@ -47,16 +48,16 @@ class OllamaClient:
                     format=schema.model_json_schema(),
                     options={"temperature": 0},
                 )
-                
+
                 content = response["message"]["content"].strip()
-                
+
                 # Defensively strip markdown code blocks if the model ignored the format constraint
                 if content.startswith("```"):
                     # Remove opening block
                     content = re.sub(r"^```(?:json)?\s*", "", content)
                     # Remove closing block
                     content = re.sub(r"\s*```$", "", content)
-                
+
                 return schema.model_validate_json(content)
             except ValidationError as e:
                 attempt += 1
