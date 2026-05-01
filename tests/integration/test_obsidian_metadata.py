@@ -35,7 +35,7 @@ def test_obsidian_metadata_renaming(temp_dirs: tuple[Path, Path, Path]) -> None:
         "title": "Renaming Test",
         "sender": "Sender Name",
         "recipient": "Recipient Name",
-        "transaction": "Requesting Info",
+        "intent": "Requesting Info",
         "tags": ["#NATO", "#Security"],
     }
 
@@ -57,10 +57,11 @@ def test_obsidian_metadata_renaming(temp_dirs: tuple[Path, Path, Path]) -> None:
         assert "correspondence_sender" not in metadata
         assert metadata["sender"] == "Sender Name"
         assert metadata["recipient"] == "Recipient Name"
+        assert metadata["intent"] == "Requesting Info"
 
-        # Tags should be cleaned
-        assert "NATO" in metadata["tags"]
-        assert "#NATO" not in metadata["tags"]
+        # Tags should be cleaned and present in the body
+        assert "tags" not in metadata
+        assert "#NATO #Security" in body
 
 
 def test_obsidian_metadata_relative_source(temp_dirs: tuple[Path, Path, Path]) -> None:
@@ -126,20 +127,24 @@ def test_obsidian_metadata_tags(temp_dirs: tuple[Path, Path, Path]) -> None:
 
         output_file = output_dir / "test.md"
         content = output_file.read_text()
-        metadata, _ = parse_frontmatter(content)
+        metadata, body = parse_frontmatter(content)
 
-        # Tags should be: ["NATO", "Security", "ColdWar"]
-        assert metadata["tags"] == ["NATO", "Security", "ColdWar"]
+        # Tags should not be in frontmatter
+        assert "tags" not in metadata
+        # Tags should be in body callout: ["#NATO", "#Security", "#ColdWar"]
+        assert "#NATO #Security #ColdWar" in body
 
 
-def test_obsidian_metadata_body_structure(temp_dirs: tuple[Path, Path, Path]) -> None:
+def test_obsidian_metadata_entities(temp_dirs: tuple[Path, Path, Path]) -> None:
     input_dir, output_dir, _ = temp_dirs
     runner = CliRunner()
 
     mock_metadata = {
-        "title": "Structure Test",
-        "abstract": "This is a detailed abstract.\nIt has multiple lines.",
-        "summary": "One sentence summary."
+        "title": "Entity Test",
+        "mentioned_states": ["United Kingdom", "United States"],
+        "mentioned_organisations": ["NATO"],
+        "mentioned_cities": ["London, United Kingdom", "Washington, United States"],
+        "location_state": "Germany"
     }
 
     with patch("ollama.Client.chat") as mock_chat:
@@ -152,18 +157,18 @@ def test_obsidian_metadata_body_structure(temp_dirs: tuple[Path, Path, Path]) ->
 
         output_file = output_dir / "test.md"
         content = output_file.read_text()
+        metadata, body = parse_frontmatter(content)
 
-        # Verify body structure (title and abstract inside callout)
-        assert "> [!abstract]" in content
-        assert "> # Structure Test" in content
-        assert "> This is a detailed abstract." in content
-        assert "> It has multiple lines." in content
+        # Excluded from frontmatter
+        assert "mentioned_states" not in metadata
+        assert "mentioned_organisations" not in metadata
+        assert "mentioned_cities" not in metadata
 
-        # Verify no horizontal rule after callout
-        # (It shouldn't have --- after the callout anymore)
-        
-        # Verify it's BEFORE the original content
-        _, body = parse_frontmatter(content)
-        # body starts with \n due to the empty line we add before callout
-        assert "> [!abstract]" in body
-        assert "This is a test document." in body
+        # Present in body callout
+        assert "## Mentioned Entities" in body
+        assert "#State/United-Kingdom" in body
+        assert "#State/United-States" in body
+        assert "#Org/NATO" in body
+        # Should NOT use location_state (Germany) but the state provided in the city string
+        assert "#City/United-Kingdom/London" in body
+        assert "#City/United-States/Washington" in body

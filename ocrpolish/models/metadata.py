@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 class CorrespondenceSchema(BaseModel):
     sender: str = Field("", description="The name and/or institution of the sender.")
     recipient: str = Field("", description="The name and/or institution of the recipient.")
-    transaction: str = Field(
+    correspondence: str = Field(
         "", description="The specific action, request, or purpose imposed by the correspondence."
     )
 
@@ -51,7 +51,7 @@ class MetadataSchema(BaseModel):
     # Flattened correspondence fields
     sender: str = Field("", description="The name/institution of the sender.")
     recipient: str = Field("", description="The name/institution of the recipient.")
-    transaction: str = Field(
+    intent: str = Field(
         "", description="The action, request, or purpose imposed by the correspondence."
     )
 
@@ -62,6 +62,10 @@ class MetadataSchema(BaseModel):
     mentioned_organisations: list[str] = Field(
         default_factory=list,
         description="Organizations mentioned (e.g., NATO, European Community).",
+    )
+    mentioned_cities: list[str] = Field(
+        default_factory=list,
+        description="Cities mentioned. Format each as 'City, State' (e.g., 'London, United Kingdom').",
     )
     references: list[str] = Field(
         default_factory=list,

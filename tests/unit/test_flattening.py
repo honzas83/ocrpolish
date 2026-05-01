@@ -1,5 +1,7 @@
 import pytest
+
 from ocrpolish.services.flattening_service import FlatteningService
+
 
 @pytest.fixture
 def sample_hierarchy():

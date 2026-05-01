@@ -9,6 +9,18 @@ A specialized toolkit for cleaning, formatting, and validating OCR outputs proce
 - **Smart Paragraph Wrapping**: Automatically wraps long lines while preserving lists, tables, and structural markers.
 - **Directory Mirroring**: Replicates the input directory structure in the output directory.
 - **DOCX Generation**: Converts cleaned Markdown to DOCX with preserved structure.
+- **Obsidian Optimization**: Generates Markdown files optimized for Obsidian with hierarchical tags, cleaner frontmatter, and an integrated abstract callout.
+
+## Obsidian Export Structure
+
+The `metadata` command generates Markdown files with a specific structure designed for Obsidian:
+
+1. **YAML Frontmatter**: Contains core metadata such as `title`, `summary`, `pages`, `correspondence`, `date`, `archive_code`, and `source` (relative link to the PDF).
+2. **Abstract Callout**: A block containing:
+   - The document **title** and **abstract**.
+   - **Mentioned Entities**: Hierarchical tags for mentioned countries, organizations, and cities (e.g., `#State/UK`, `#Org/NATO`, `#City/UK/London`).
+   - **Categories/Topics**: Hierarchical tags extracted from a provided hierarchy file.
+   - **Tags**: Flat keywords extracted by the LLM.
 
 ## Installation
 

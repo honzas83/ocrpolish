@@ -8,6 +8,7 @@ from ocrpolish.models.metadata import LastDateSchema, MetadataSchema
 from ocrpolish.services.ollama_client import OllamaClient
 from ocrpolish.services.topics_service import TopicExtractor
 from ocrpolish.utils.metadata import (
+    extract_last_page_header,
     flatten_metadata,
     format_as_callout,
     format_hierarchical_tag,
@@ -62,14 +63,17 @@ class MetadataProcessor:
         self, raw_dict: dict[str, Any], input_file: Path
     ) -> dict[str, Any]:
         """Prepares the metadata dictionary for Obsidian output."""
-        # 1. Strip 'correspondence_' prefix from all keys
+        # 1. Clean dict and handle renames
         clean_dict: dict[str, Any] = {}
         for k, v in raw_dict.items():
             new_key = k.removeprefix("correspondence_")
+            # Rename legacy fields to intent if found
+            if new_key in ("transaction", "correspondence"):
+                new_key = "intent"
             clean_dict[new_key] = v
         raw_dict = clean_dict
 
-        # 2. Standardize tags
+        # 2. Standardize tags (flat tags)
         if raw_dict.get("tags"):
             raw_dict["tags"] = normalize_obsidian_tags(raw_dict["tags"])
 
@@ -80,10 +84,10 @@ class MetadataProcessor:
         primary_keys = [
             "title",
             "summary",
-            "abstract",
+            "pages",
             "sender",
             "recipient",
-            "transaction",
+            "intent",
             "author_name",
             "author_institution",
             "date",
@@ -94,6 +98,9 @@ class MetadataProcessor:
             "source",
         ]
 
+        # 5. Exclude mentioned_* from frontmatter (they go to Callout)
+        excluded_keys = ["mentioned_states", "mentioned_organisations", "mentioned_cities"]
+
         metadata_dict = {}
         for k in primary_keys:
             if k in raw_dict:
@@ -102,10 +109,11 @@ class MetadataProcessor:
                 if val not in (None, "", [], {}):
                     metadata_dict[k] = val
 
-        # 5. Flatten the remaining fields and filter them
+        # 6. Flatten the remaining fields and filter them
         flattened_remainder = flatten_metadata(raw_dict)
         for k, v in flattened_remainder.items():
-            if v not in (None, "", [], {}):
+            # Ensure excluded keys don't sneak back in after flattening
+            if k not in excluded_keys and v not in (None, "", [], {}):
                 metadata_dict[k] = v
         return metadata_dict
 
@@ -148,16 +156,18 @@ class MetadataProcessor:
                 "It must be a superset of the summary.\n"
                 "4. 'mentioned_states' must only contain full names of nation states.\n"
                 "5. 'mentioned_organisations' should include international bodies.\n"
-                "6. 'date' must be the complete official document date (YYYY-MM-DD).\n"
-                "7. 'archive_code' should be derived using both the text and the filename.\n"
-                "8. If the document is a letter, describe 'sender', 'recipient', "
-                "and 'transaction'.\n"
-                "9. 'references' should contain a list of any other reference codes.\n"
-                "10. IMPORTANT: Convert certain fields to Title Case if found in ALL CAPS. "
+                "6. 'mentioned_cities' MUST be a list of strings in 'City, State' format (e.g., ['London, United Kingdom', 'Washington, United States']).\n"
+                "7. 'date' must be the complete official document date (YYYY-MM-DD).\n"
+                "8. 'archive_code' should be derived using both the text and the filename.\n"
+                "9. If the document is a letter, describe 'sender', 'recipient', "
+                "and 'intent' (the specific action/request).\n"
+                "10. 'references' should contain a list of any other reference codes.\n"
+                "11. IMPORTANT: Use English for all metadata values, regardless of the source language.\n"
+                "12. IMPORTANT: Convert certain fields to Title Case if found in ALL CAPS. "
                 "Preserve uppercase for NATO acronyms.\n"
-                "11. Ensure 'location_state' is filled if 'location_city' is identified.\n"
-                "12. Generate between 3 and 8 'tags'. No spaces.\n"
-                "13. Interpret and correct OCR errors using context."
+                "13. Ensure 'location_state' is filled if 'location_city' is identified.\n"
+                "14. Generate between 3 and 8 'tags'. No spaces.\n"
+                "15. Interpret and correct OCR errors using context."
                 f"{tag_context}"
             )
 
@@ -169,6 +179,11 @@ class MetadataProcessor:
 
             # Convert to dict.
             raw_dict = metadata_obj.model_dump()
+
+            # US-014: Extract page count from source headers
+            pages = extract_last_page_header(content)
+            if pages:
+                raw_dict["pages"] = pages
 
             # Phase 2: Secondary Pass for Date (only if missing and document is large)
             if not raw_dict.get("date") and len(content) > LARGE_DOC_THRESHOLD:
@@ -189,6 +204,12 @@ class MetadataProcessor:
             # Prepare metadata for Obsidian (standardization, flattening, prefix removal)
             # We merge with existing metadata here
             combined_raw = {**existing_metadata, **raw_dict}
+
+            # US-014: Extract mentioned entities BEFORE filtering for frontmatter
+            states_list = combined_raw.get("mentioned_states", [])
+            orgs_list = combined_raw.get("mentioned_organisations", [])
+            cities_list = combined_raw.get("mentioned_cities", [])
+
             metadata_dict = self._prepare_obsidian_metadata(combined_raw, input_file)
 
             # User Story 2: Move title and abstract to body callout
@@ -206,6 +227,27 @@ class MetadataProcessor:
                         tag = format_hierarchical_tag(a.category, a.topic)
                         topic_list_items.append(f"{tag} — {a.reason}")
 
+            # US-014: Process mentioned entities into hierarchical tags
+            mentioned_tags = []
+            
+            # Simple fallback for city state: use location_state if available, 
+            # otherwise first mentioned_state, otherwise "Unknown"
+            default_state = metadata_dict.get("location_state") or (states_list[0] if states_list else "Unknown")
+
+            for s in states_list:
+                mentioned_tags.append(format_hierarchical_tag("State", s))
+            for o in orgs_list:
+                mentioned_tags.append(format_hierarchical_tag("Org", o))
+            for c_item in cities_list:
+                if "," in c_item:
+                    city, state = [part.strip() for part in c_item.split(",", 1)]
+                else:
+                    city = c_item
+                    state = default_state
+                mentioned_tags.append(format_hierarchical_tag("City", state, city))
+
+            mentioned_tags_str = " ".join(mentioned_tags)
+
             # US3: Extract flat tags and remove from frontmatter property
             flat_tags = metadata_dict.pop("tags", [])
             flat_tags_str = ""
@@ -218,13 +260,16 @@ class MetadataProcessor:
 
             # Build the callout block with dedicated sections for topics and tags
             body_prefix = ""
-            if title or abstract or topic_list_items or flat_tags_str:
+            if title or abstract or topic_list_items or flat_tags_str or mentioned_tags_str:
                 sections = []
                 if title:
                     sections.append(f"# {title}")
                 if abstract:
                     sections.append(abstract)
                 
+                if mentioned_tags_str:
+                    sections.append(f"## Mentioned Entities\n\n{mentioned_tags_str}")
+
                 if topic_list_items:
                     topic_section = "## Categories/Topics\n\n" + "\n".join(topic_list_items)
                     sections.append(topic_section)

@@ -105,14 +105,21 @@ def normalize_obsidian_tags(tags: list[str]) -> list[str]:
     return normalized
 
 
-def format_hierarchical_tag(category: str, topic: str) -> str:
+def normalize_tag_component(component: str) -> str:
     """
-    Formats a category and topic into an Obsidian hierarchical tag.
-    Spaces are replaced with hyphens.
+    Normalizes a tag component by stripping whitespace and replacing spaces with hyphens.
     """
-    clean_cat = category.strip().replace(" ", "-")
-    clean_topic = topic.strip().replace(" ", "-")
-    return f"#{clean_cat}/{clean_topic}"
+    return component.strip().replace(" ", "-")
+
+
+def format_hierarchical_tag(category: str, *topics: str) -> str:
+    """
+    Formats a category and one or more topics into an Obsidian hierarchical tag.
+    Example: format_hierarchical_tag("City", "UK", "London") -> "#City/UK/London"
+    """
+    components = [normalize_tag_component(category)]
+    components.extend([normalize_tag_component(t) for t in topics if t])
+    return f"#{'/'.join(components)}"
 
 
 def format_as_callout(text: str, title: str = "Abstract", callout_type: str = "abstract") -> str:
@@ -164,4 +171,14 @@ def extract_page_number(line: str) -> int | None:
     match = re.search(r"[-~]\s*(\d+)\s*[-~]", line)
     if match:
         return int(match.group(1))
+    return None
+
+
+def extract_last_page_header(content: str) -> int | None:
+    """
+    Extracts the page number from the last header matching '# Page [Number]'.
+    """
+    matches = re.findall(r"^# Page (\d+)", content, re.MULTILINE)
+    if matches:
+        return int(matches[-1])
     return None

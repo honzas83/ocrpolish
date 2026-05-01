@@ -48,11 +48,11 @@ def test_metadata_command_large_file_date_fallback(temp_dirs: tuple[Path, Path])
     input_dir, output_dir = temp_dirs
     runner = CliRunner()
 
-    # Create a large file (> 8000 chars)
+    # Create a large file (> 12000 chars)
     large_file = input_dir / "large.md"
     content = (
         "Start of document without clear date. "
-        + ("x" * 9000)
+        + ("x" * 15000)
         + " End of document. Final Date: 2026-12-31."
     )
     large_file.write_text(content)
