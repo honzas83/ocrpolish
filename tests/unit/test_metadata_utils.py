@@ -1,10 +1,38 @@
 from ocrpolish.utils.metadata import (
+    extract_last_page_header,
     flatten_metadata,
+    format_hierarchical_tag,
     normalize_obsidian_tags,
     parse_frontmatter,
     prepend_frontmatter,
     stringify_frontmatter,
 )
+
+
+def test_format_hierarchical_tag() -> None:
+    # Single level (category + topic as originally envisioned)
+    assert format_hierarchical_tag("State", "UK") == "#State/UK"
+    # Multiple levels
+    assert format_hierarchical_tag("City", "UK", "London") == "#City/UK/London"
+    # Spaces replaced with hyphens
+    assert format_hierarchical_tag("State", "United Kingdom") == "#State/United-Kingdom"
+    # Handling empty topics
+    assert format_hierarchical_tag("Org", "NATO", "") == "#Org/NATO"
+
+
+def test_extract_last_page_header() -> None:
+    content = """# Page 1
+Some content
+# Page 2
+More content
+# Page 10
+Last page"""
+    assert extract_last_page_header(content) == 10
+
+    assert extract_last_page_header("No page headers here") is None
+
+    # Middle of line shouldn't match if it's not a header
+    assert extract_last_page_header("Text # Page 5") is None
 
 
 def test_parse_frontmatter_valid() -> None:

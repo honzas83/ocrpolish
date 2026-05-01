@@ -1,7 +1,10 @@
-import pytest
 from unittest.mock import MagicMock
-from ocrpolish.services.topics_service import TopicExtractor
+
+import pytest
+
 from ocrpolish.services.ollama_client import OllamaClient
+from ocrpolish.services.topics_service import TopicExtractor
+
 
 @pytest.fixture
 def mock_ollama():

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from ocrpolish.processor_metadata import MetadataProcessor
+from ocrpolish.utils.metadata import parse_frontmatter
 
 
 @pytest.fixture
@@ -46,67 +47,75 @@ def test_prepare_obsidian_metadata_removes_empty_fields(processor: Any) -> None:
     assert "tags" not in metadata
 
 
-def test_prepare_obsidian_metadata_renames_correspondence(processor: Any) -> None:
+def test_prepare_obsidian_metadata_field_order_and_exclusion(processor: Any) -> None:
     raw_dict: dict[str, Any] = {
-        "title": "Letter",
-        "correspondence_sender": "Alice",
-        "correspondence_recipient": "Bob",
+        "title": "Document Title",
+        "summary": "This is a summary.",
+        "sender": "Alice",
+        "recipient": "Bob",
+        "intent": "Some action",
+        "mentioned_states": ["UK"],
+        "mentioned_organisations": ["NATO"],
+        "mentioned_cities": ["London"],
+        "date": "2024-04-30",
+        "author_name": "Author",
+        "pages": 10,  # Manually added before calling _prepare
     }
-    input_file = Path("letter.md")
-    processor._get_pdf_link = MagicMock(return_value="[[letter.pdf]]")
+    input_file = Path("doc.md")
+    processor._get_pdf_link = MagicMock(return_value="[[doc.pdf]]")
 
     metadata = processor._prepare_obsidian_metadata(raw_dict, input_file)
 
-    assert "sender" in metadata
-    assert metadata["sender"] == "Alice"
-    assert "recipient" in metadata
-    assert metadata["recipient"] == "Bob"
-    assert "correspondence_sender" not in metadata
+    # Check for renaming and presence
+    assert "intent" in metadata
+    assert metadata["intent"] == "Some action"
+    assert "pages" in metadata
+    
+    # Check for exclusion of mentioned_*
+    assert "mentioned_states" not in metadata
+    assert "mentioned_organisations" not in metadata
+    assert "mentioned_cities" not in metadata
+
+    # Check for order (summary, pages, sender, recipient, intent)
+    keys = list(metadata.keys())
+    # title is first in primary_keys
+    assert keys[0] == "title"
+    assert keys[1] == "summary"
+    assert keys[2] == "pages"
+    assert keys[3] == "sender"
+    assert keys[4] == "recipient"
+    assert keys[5] == "intent"
 
 
-def test_process_file_body_structure(processor: Any, tmp_path: Path) -> None:
-    input_file = tmp_path / "input.md"
-    input_file.write_text("Original content")
+def test_process_file_english_consistency(processor: Any, tmp_path: Path) -> None:
+    input_file = tmp_path / "french.md"
+    # Even if content is French, prompt mandates English
+    input_file.write_text("C'est un document en français.")
     output_file = tmp_path / "output.md"
 
-    # Mock Ollama response
+    # Mock Ollama response (simulating LLM following English instruction)
     mock_metadata = MagicMock()
-    mock_metadata.title = "The Title"
-    mock_metadata.abstract = "The Abstract."
-    mock_metadata.summary = "The Summary."
-    mock_metadata.tags = ["tag1"]
+    mock_metadata.title = "French Document"
+    mock_metadata.summary = "This is a document in French."
+    mock_metadata.mentioned_cities = ["Paris"]
+    mock_metadata.mentioned_states = ["France"]
+    mock_metadata.language = "English"  # Mandated English
     mock_metadata.model_dump.return_value = {
-        "title": "The Title",
-        "abstract": "The Abstract.",
-        "summary": "The Summary.",
-        "tags": ["tag1"],
+        "title": "French Document",
+        "summary": "This is a document in French.",
+        "mentioned_cities": ["Paris"],
+        "mentioned_states": ["France"],
+        "language": "English",
     }
     processor.client.extract_structured.return_value = mock_metadata
-
-    # Mock _get_pdf_link
-    processor._get_pdf_link = MagicMock(return_value="[[source.pdf]]")
+    processor._get_pdf_link = MagicMock(return_value="[[french.pdf]]")
 
     processor.process_file(input_file, output_file)
 
-    assert output_file.exists()
     content = output_file.read_text()
+    metadata, body = parse_frontmatter(content)
 
-    # Check frontmatter (should have title and summary, but NOT abstract)
-    assert "title: The Title" in content
-    assert "abstract: " not in content
-    assert "summary: The Summary." in content
-
-    # Check body structure (inside callout)
-    assert "> [!abstract]" in content
-    assert "> # The Title" in content
-    assert "> The Abstract." in content
-    assert "Original content" in content
-
-    # Verify order
-    lines = content.splitlines()
-    callout_idx = next(i for i, line in enumerate(lines) if "> [!abstract]" in line)
-    title_idx = next(i for i, line in enumerate(lines) if "> # The Title" in line)
-    abstract_idx = next(i for i, line in enumerate(lines) if "> The Abstract." in line)
-    body_idx = next(i for i, line in enumerate(lines) if "Original content" in line)
-
-    assert callout_idx < title_idx < abstract_idx < body_idx
+    assert metadata["title"] == "French Document"
+    assert metadata["language"] == "English"
+    # Tag should use "City" (English) and "France" (English)
+    assert "#City/France/Paris" in body

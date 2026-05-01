@@ -32,8 +32,8 @@ def test_metadata_schema_valid_data() -> None:
 
 
 def test_metadata_schema_flattened_correspondence() -> None:
-    data = {"sender": "Sender X", "recipient": "Recipient Y", "transaction": "Action Z"}
+    data = {"sender": "Sender X", "recipient": "Recipient Y", "intent": "Action Z"}
     schema = MetadataSchema(**data)
     assert schema.sender == "Sender X"
     assert schema.recipient == "Recipient Y"
-    assert schema.transaction == "Action Z"
+    assert schema.intent == "Action Z"
