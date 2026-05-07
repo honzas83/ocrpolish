@@ -216,12 +216,14 @@ class InterlinkingService:
                         continue
                     # Extract code if it's already a link
                     link_match = re.match(r"^\[(.*?)\]\(.*?\)$", stripped_part)
-                    code = link_match.group(1) if link_match else stripped_part
-                    if code not in existing_codes:
-                        existing_codes.append(code)
+                    raw_code = link_match.group(1) if link_match else stripped_part
+                    # Canonicalize
+                    canonical = self.bib_to_norm.get(raw_code, raw_code)
+                    if canonical not in existing_codes:
+                        existing_codes.append(canonical)
                 
                 # Merge with discovered_codes (from body)
-                # discovered_codes are in order of occurrence.
+                # discovered_codes are already canonicalized by interlink_body
                 body_codes = discovered_codes or []
                 final_codes = []
                 
@@ -230,6 +232,7 @@ class InterlinkingService:
 
                 # First: Add all from body in order of appearance
                 for c in body_codes:
+                    # c is already canonical
                     if c not in final_codes:
                         # Skip if it's the document's own archive_code (BibTeX-style fuzzy check)
                         if own_code_bib and safe_identifier(c) == own_code_bib:
@@ -238,6 +241,7 @@ class InterlinkingService:
                 
                 # Second: Add existing ones that were NOT in body (silent references)
                 for c in existing_codes:
+                    # c is already canonical
                     if c not in final_codes:
                         # Skip if it's the document's own archive_code
                         if own_code_bib and safe_identifier(c) == own_code_bib:
