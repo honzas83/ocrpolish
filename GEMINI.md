@@ -61,6 +61,13 @@ Python 3.12: Follow standard conventions.
     - **Flexible Matching**:
         - Archive codes treat `/` and `-` as equivalent separators (OCR mitigation).
         - **BibTeX Fallback**: If no exact match is found, system MUST attempt matching using BibTeX-style keys (e.g., `NPG-D-74-2` matches `NPG/D(74)2`).
+        - **Priority Order**:
+            1. Exact match in source_lang
+            2. BibTeX-style fuzzy match in source_lang
+            3. Exact match in English
+            4. BibTeX-style fuzzy match in English
+            5. Exact match in any lang
+            6. BibTeX-style fuzzy match in any lang
     - **Sync & Sort**: References metadata is synchronized with body occurrences and sorted by order of appearance.
     - **Formatting**:
         - Use `<br>` as separator for vertical lists in metadata callouts.

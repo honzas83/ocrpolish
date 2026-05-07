@@ -23,16 +23,34 @@ def test_resolve_link_priority():
             "German": "path/de.md"
         }
     }
+    service.bibtex_map = {
+        "CODE1": {
+            "French": "path/fr_fuzzy.md",
+            "English": "path/en_fuzzy.md"
+        }
+    }
     
-    # Same language
+    # 1. Exact match in source_lang
     assert service.resolve_link("CODE1", "French") == "path/fr.md"
     
-    # Fallback to English
-    assert service.resolve_link("CODE1", "Italian") == "path/en.md"
+    # 2. BibTeX fuzzy match in source_lang
+    # (Setup CODE2 with only fuzzy in French, but exact in English)
+    service.code_map["CODE2"] = {"English": "path/en2.md"}
+    service.bibtex_map["CODE2"] = {"French": "path/fr2_fuzzy.md"}
+    assert service.resolve_link("CODE2", "French") == "path/fr2_fuzzy.md"
     
-    # Fallback to any (if English missing)
-    service.code_map["CODE2"] = {"French": "path/fr2.md"}
-    assert service.resolve_link("CODE2", "Italian") == "path/fr2.md"
+    # 3. Exact match in English
+    service.code_map["CODE3"] = {"English": "path/en3.md"}
+    service.bibtex_map["CODE3"] = {"German": "path/de3_fuzzy.md"}
+    assert service.resolve_link("CODE3", "French") == "path/en3.md"
+    
+    # 4. BibTeX fuzzy match in English
+    service.bibtex_map["CODE4"] = {"English": "path/en4_fuzzy.md"}
+    assert service.resolve_link("CODE4", "French") == "path/en4_fuzzy.md"
+    
+    # 5. Exact match in any
+    service.code_map["CODE5"] = {"German": "path/de5.md"}
+    assert service.resolve_link("CODE5", "French") == "path/de5.md"
     
     # Missing code
     assert service.resolve_link("MISSING", "English") is None

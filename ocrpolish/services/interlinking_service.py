@@ -41,38 +41,37 @@ class InterlinkingService:
         Resolves a target_code to a vault-relative path using language priority.
         Priority:
         1. Exact match in source_lang
-        2. Exact match in English
-        3. Exact match in any lang
-        4. BibTeX-style fuzzy match in source_lang
-        5. BibTeX-style fuzzy match in English
+        2. BibTeX-style fuzzy match in source_lang
+        3. Exact match in English
+        4. BibTeX-style fuzzy match in English
+        5. Exact match in any lang
         6. BibTeX-style fuzzy match in any lang
         """
-        # 1. Try exact normalized match
         normalized = self.normalize_code(target_code)
-        res = self._resolve_from_map(self.code_map, normalized, source_lang)
-        if res:
-            return res
-            
-        # 2. Try BibTeX key match as fallback
         bib = safe_identifier(target_code)
-        return self._resolve_from_map(self.bibtex_map, bib, source_lang)
+        
+        exact_variants = self.code_map.get(normalized, {})
+        bib_variants = self.bibtex_map.get(bib, {})
 
-    def _resolve_from_map(self, amap: dict[str, dict[str, str]], key: str, source_lang: str) -> str | None:
-        """Helper to resolve a key from a map with language priority."""
-        variants = amap.get(key)
-        if not variants:
-            return None
+        # 1 & 2: Source language
+        if source_lang in exact_variants:
+            return exact_variants[source_lang]
+        if source_lang in bib_variants:
+            return bib_variants[source_lang]
             
-        # 1. Current language
-        if source_lang in variants:
-            return variants[source_lang]
+        # 3 & 4: English fallback
+        if "English" in exact_variants:
+            return exact_variants["English"]
+        if "English" in bib_variants:
+            return bib_variants["English"]
             
-        # 2. English fallback
-        if "English" in variants:
-            return variants["English"]
+        # 5 & 6: Any other language
+        if exact_variants:
+            return next(iter(exact_variants.values()))
+        if bib_variants:
+            return next(iter(bib_variants.values()))
             
-        # 3. Any available
-        return next(iter(variants.values()))
+        return None
 
     def discover(self):
         """First pass: build the archive code maps by scanning all Markdown files."""
