@@ -57,8 +57,10 @@ Python 3.12: Follow standard conventions.
     - **Prohibition**: Strictly NO ALL UPPERCASE for titles.
 - **Interlinking**:
     - **Idempotency**: Single-pass regex replacement to avoid link nesting.
-    - **Self-Linking**: Documents MUST NOT link to themselves.
-    - **Flexible Matching**: Archive codes treat `/` and `-` as equivalent separators (OCR mitigation).
+    - **Self-Linking**: Documents MUST NOT link to themselves (using BibTeX-style fuzzy matching for detection).
+    - **Flexible Matching**:
+        - Archive codes treat `/` and `-` as equivalent separators (OCR mitigation).
+        - **BibTeX Fallback**: If no exact match is found, system MUST attempt matching using BibTeX-style keys (e.g., `NPG-D-74-2` matches `NPG/D(74)2`).
     - **Sync & Sort**: References metadata is synchronized with body occurrences and sorted by order of appearance.
     - **Formatting**:
         - Use `<br>` as separator for vertical lists in metadata callouts.

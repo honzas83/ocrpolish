@@ -84,7 +84,8 @@ As a reader, I want occurrences of archive codes within the text of a document t
 - **FR-011**: System MUST silently ignore archive codes that cannot be resolved to any file in the vault (no error reporting for dangling references).
 - **FR-012**: System MUST be idempotent. It MUST detect existing Markdown links to archive codes and replace them rather than nesting new links within them.
 - **FR-013**: System MUST treat slashes (`/`) and dashes (`-`) as equivalent separators for archive codes during normalization and matching (OCR error mitigation).
-- **FR-014**: System MUST NOT link a document to its own file in either metadata or body.
+- **FR-013-1**: System MUST implement a **BibTeX-style fallback** for matching: if no exact normalized match is found, attempt matching by converting both target and candidate codes to "safe identifiers" (replacing all non-alphanumeric chars with hyphens, e.g., `NPG-D-74-2` instead of `NPG/D(74)2`).
+- **FR-014**: System MUST NOT link a document to its own file in either metadata or body (using BibTeX-style comparison for detection).
 - **FR-015**: System MUST synchronize the `references` metadata row with all archive codes discovered in the document body.
 - **FR-016**: System MUST sort the `references` list in the metadata table by the order of their first occurrence in the document body.
 - **FR-017**: System MUST use `<br>` tags as separators for lists in the metadata callout table (references, language_versions).

@@ -5,6 +5,8 @@ from pathlib import Path
 
 import yaml
 
+from ocrpolish.utils.metadata import safe_identifier
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -22,6 +24,7 @@ class InterlinkingService:
     def __init__(self, vault_dir: Path):
         self.vault_dir = vault_dir
         self.code_map: dict[str, dict[str, str]] = {} # normalized_code -> {lang: relative_path}
+        self.bibtex_map: dict[str, dict[str, str]] = {} # bibtex_key -> {lang: filename}
 
     @staticmethod
     def normalize_code(code: str) -> str:
@@ -36,10 +39,27 @@ class InterlinkingService:
     def resolve_link(self, target_code: str, source_lang: str) -> str | None:
         """
         Resolves a target_code to a vault-relative path using language priority.
-        Priority: source_lang -> English -> Any other available language.
+        Priority:
+        1. Exact match in source_lang
+        2. Exact match in English
+        3. Exact match in any lang
+        4. BibTeX-style fuzzy match in source_lang
+        5. BibTeX-style fuzzy match in English
+        6. BibTeX-style fuzzy match in any lang
         """
+        # 1. Try exact normalized match
         normalized = self.normalize_code(target_code)
-        variants = self.code_map.get(normalized)
+        res = self._resolve_from_map(self.code_map, normalized, source_lang)
+        if res:
+            return res
+            
+        # 2. Try BibTeX key match as fallback
+        bib = safe_identifier(target_code)
+        return self._resolve_from_map(self.bibtex_map, bib, source_lang)
+
+    def _resolve_from_map(self, amap: dict[str, dict[str, str]], key: str, source_lang: str) -> str | None:
+        """Helper to resolve a key from a map with language priority."""
+        variants = amap.get(key)
         if not variants:
             return None
             
@@ -55,8 +75,9 @@ class InterlinkingService:
         return next(iter(variants.values()))
 
     def discover(self):
-        """First pass: build the archive code map by scanning all Markdown files."""
+        """First pass: build the archive code maps by scanning all Markdown files."""
         self.code_map = {}
+        self.bibtex_map = {}
         for md_file in self.vault_dir.rglob("*.md"):
             try:
                 content = md_file.read_text(encoding="utf-8")
@@ -74,12 +95,20 @@ class InterlinkingService:
                 
                 if code and lang:
                     norm_code = self.normalize_code(code)
-                    # Use only filename as requested
+                    bib_code = safe_identifier(code)
                     filename = md_file.name
                     
+                    # Add to exact map
                     if norm_code not in self.code_map:
                         self.code_map[norm_code] = {}
                     self.code_map[norm_code][lang] = filename
+                    
+                    # Add to BibTeX map as fuzzy fallback
+                    if bib_code not in self.bibtex_map:
+                        self.bibtex_map[bib_code] = {}
+                    # Only add if not already present for this lang (exact code mapping takes precedence if found first)
+                    if lang not in self.bibtex_map[bib_code]:
+                        self.bibtex_map[bib_code][lang] = filename
             except Exception:
                 # Silently skip files that can't be parsed
                 continue
@@ -185,14 +214,23 @@ class InterlinkingService:
                 body_codes = discovered_codes or []
                 final_codes = []
                 
+                # Normalize own archive_code for strict comparison (using BibTeX-style key)
+                own_code_bib = safe_identifier(archive_code) if archive_code else None
+
                 # First: Add all from body in order of appearance
                 for c in body_codes:
                     if c not in final_codes:
+                        # Skip if it's the document's own archive_code (BibTeX-style fuzzy check)
+                        if own_code_bib and safe_identifier(c) == own_code_bib:
+                            continue
                         final_codes.append(c)
                 
                 # Second: Add existing ones that were NOT in body (silent references)
                 for c in existing_codes:
                     if c not in final_codes:
+                        # Skip if it's the document's own archive_code
+                        if own_code_bib and safe_identifier(c) == own_code_bib:
+                            continue
                         final_codes.append(c)
                 
                 # Format back with links
@@ -216,21 +254,29 @@ class InterlinkingService:
         # If no reference row was found but we have discovered codes, add it!
         if not found_ref_row and discovered_codes:
             new_parts = []
+            own_code_bib = safe_identifier(archive_code) if archive_code else None
+
             for code in discovered_codes:
+                # Skip if it's the document's own archive_code (BibTeX-style fuzzy check)
+                if own_code_bib and safe_identifier(code) == own_code_bib:
+                    continue
+
                 link_path = self.resolve_link(code, source_lang)
                 if link_path and link_path != current_filename:
                     new_parts.append(f"[{code}]({link_path})")
                 else:
                     new_parts.append(code)
-            
-            # Find a good place to insert (after language_versions or intent)
-            insert_idx = len(new_rows)
-            for i, r in enumerate(new_rows):
-                if lang_versions_re.match(r) or lang_re.match(r) or intent_re.match(r):
-                    insert_idx = i + 1
-            
-            ref_row = f"> | ☰&nbsp;references: | {'<br>'.join(new_parts)} |"
-            new_rows.insert(insert_idx, ref_row)
+
+            if new_parts:
+                # Find a good place to insert (after language_versions or intent)
+                insert_idx = len(new_rows)
+                for i, r in enumerate(new_rows):
+                    if "language_versions:" in r or "language:" in r or "intent:" in r:
+                        insert_idx = i + 1
+
+                ref_row = f"> | ☰&nbsp;references: | {'<br>'.join(new_parts)} |"
+                new_rows.insert(insert_idx, ref_row)
+
             
         new_table_body = "\n".join(new_rows)
         return content[:match.start()] + header + new_table_body + content[match.end():]
@@ -245,7 +291,9 @@ class InterlinkingService:
         Returns (new_content, ordered_list_of_codes_found).
         """
         # Sort codes by length descending to ensure longest match priority
-        sorted_codes = sorted(self.code_map.keys(), key=len, reverse=True)
+        # Include both exact codes and BibTeX-style keys
+        all_search_keys = set(self.code_map.keys()) | set(self.bibtex_map.keys())
+        sorted_codes = sorted(all_search_keys, key=len, reverse=True)
         if not sorted_codes:
             return content, []
 
