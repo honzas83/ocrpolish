@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 
 import click
@@ -49,6 +48,16 @@ def cli(verbose: bool) -> None:
     default=Path("frequency.txt"),
     help="Path for the consolidated frequency report (within output_dir).",
 )
+@click.option(
+    "--docx",
+    type=click.Path(path_type=Path),
+    help="Path to generate DOCX files alongside MD.",
+)
+@click.option(
+    "--filter-file",
+    type=click.Path(path_type=Path),
+    help="Path to a text file containing phrases to filter out.",
+)
 def clean(
     input_dir: Path,
     output_dir: Path,
@@ -57,16 +66,20 @@ def clean(
     dry_run: bool,
     save_filtered: bool,
     frequency_file: Path,
+    docx: Path | None,
+    filter_file: Path | None,
 ) -> None:
     """Post-process OCR Markdown files (wrapping, filtering boilerplate)."""
     config = ProcessingConfig(
         input_dir=input_dir,
         output_dir=output_dir,
-        mask=mask,
-        width=width,
+        input_mask=mask,
+        typewriter_width=width,
         dry_run=dry_run,
         save_filtered=save_filtered,
-        frequency_file=frequency_file,
+        frequency_file_path=frequency_file,
+        docx_output_dir=docx,
+        filter_file_path=filter_file,
     )
     run_processing(config)
 
@@ -88,7 +101,7 @@ def clean(
 @click.option(
     "--tags-file", type=click.Path(exists=True, path_type=Path), help="Path to useful tags YAML."
 )
-@click.option("--flat-mode", is_flag=True, help="Use flat taxonomy instead of hierarchical.")
+@click.option("--flat-topics", is_flag=True, help="Use flat taxonomy instead of hierarchical.")
 @click.option("--overwrite", is_flag=True, help="Overwrite existing output files.")
 @click.option("--dry-run", is_flag=True, help="If set, logs metadata without writing files.")
 def metadata(
@@ -100,7 +113,7 @@ def metadata(
     vault_root: Path | None,
     hierarchy_file: Path | None,
     tags_file: Path | None,
-    flat_mode: bool,
+    flat_topics: bool,
     overwrite: bool,
     dry_run: bool,
 ) -> None:
@@ -119,7 +132,7 @@ def metadata(
             themes_path=hierarchy_file,
             useful_tags_path=tags_file,
             model_name=model,
-            flat_mode=flat_mode,
+            flat_mode=flat_topics,
         )
 
     processor = MetadataProcessor(
@@ -169,10 +182,8 @@ def metadata(
 def obsidian(input_dir: Path, output_dir: Path, mask: str, template_dir: Path) -> None:
     """Generate an Obsidian vault from processed Markdown and metadata."""
     initialize_vault_from_template(template_dir, output_dir)
-    for md_file in input_dir.rglob(mask):
-        yaml_file = md_file.with_suffix(".yaml")
-        if yaml_file.exists():
-            mirror_file(md_file, yaml_file, output_dir, input_dir)
+    # Mirroring logic has been integrated into the metadata pass directly.
+    # Leaving command as placeholder or for pure template init.
 
 
 @cli.command()
@@ -181,9 +192,11 @@ def obsidian(input_dir: Path, output_dir: Path, mask: str, template_dir: Path) -
 @click.option("--mask", default="*.md", help="Glob pattern for files to process (default: *.md).")
 def index(input_dir: Path, output_dir: Path, mask: str) -> None:
     """Index metadata and generate citations."""
-    service = IndexingService()
-    service.index_directory(input_dir, mask)
-    service.generate_citations(output_dir)
+    service = IndexingService(input_dir=input_dir)
+    for md_file in input_dir.rglob(mask):
+        service.process_file(md_file)
+    service.generate_xlsx(output_dir / "metadata_index.xlsx")
+    service.generate_markdown_indices()
 
 
 @cli.command()
@@ -193,9 +206,9 @@ def index(input_dir: Path, output_dir: Path, mask: str) -> None:
 @click.option("--taxonomy", type=click.Path(exists=True, path_type=Path), required=True)
 @click.option("--tags", type=click.Path(exists=True, path_type=Path), required=True)
 def tag(input_dir: Path, output_dir: Path, mask: str, taxonomy: Path, tags: Path) -> None:
-    """Apply tiered tagging system to Obsidian vault."""
-    service = TaggingService(taxonomy_path=taxonomy, tags_path=tags)
-    service.tag_vault(input_dir, output_dir, mask)
+    """Apply tiered tagging system to Obsidian vault. (Integrated into metadata command)"""
+    click.echo("Tagging is now performed during the metadata extraction pass.")
+    click.echo("Please use the 'metadata' command with --hierarchy-file and --tags-file options.")
 
 
 @cli.command()
@@ -203,7 +216,7 @@ def tag(input_dir: Path, output_dir: Path, mask: str, taxonomy: Path, tags: Path
 @click.option("--dry-run", is_flag=True, help="If set, logs changes without writing to files.")
 @click.option("--verbose", is_flag=True, help="Show detailed matching logs.")
 @click.option("--force", is_flag=True, help="Regenerate all links, even if they already exist.")
-def interlink(vault_dir: Path, dry_run: bool, verbose: bool, force: bool):
+def interlink(vault_dir: Path, dry_run: bool, verbose: bool, force: bool) -> None:
     """Post-processes a generated Obsidian vault in-place to interlink documents."""
     service = InterlinkingService(vault_dir)
     

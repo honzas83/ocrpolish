@@ -1,7 +1,10 @@
 from pathlib import Path
 from unittest.mock import patch
+
 from click.testing import CliRunner
+
 from ocrpolish.cli import cli
+
 
 def test_vault_initialization_via_cli():
     runner = CliRunner()

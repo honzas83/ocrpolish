@@ -277,7 +277,7 @@ class MetadataProcessor:
 
             # Step 2: Precision Tagging Pass
             topic_list_items = []
-            entity_tags = []
+            entity_tags: list[str] = []
             tag_list_items = []
 
             if self.tagging_service:
@@ -328,9 +328,9 @@ class MetadataProcessor:
                     "State": "States"
                 }
                 
-                grouped_entities = {}
-                for t in sorted(entity_tags):
-                    tag = f"#{t}" if not t.startswith("#") else t
+                grouped_entities: dict[str, list[str]] = {}
+                for e_tag in sorted(entity_tags):
+                    tag = f"#{e_tag}" if not e_tag.startswith("#") else e_tag
                     # Extract type: #Type/Name -> Type
                     parts = tag.lstrip("#").split("/", 1)
                     etype = parts[0] if len(parts) > 1 else "Other"

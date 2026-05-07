@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from click.testing import CliRunner
@@ -8,7 +9,7 @@ from ocrpolish.models.metadata import MetadataSchema
 from ocrpolish.utils.metadata import parse_frontmatter
 
 
-def create_mock_ollama_response(content: str) -> dict:
+def create_mock_ollama_response(content: str) -> dict[str, dict[str, str]]:
     return {
         "message": {
             "role": "assistant",
@@ -17,7 +18,7 @@ def create_mock_ollama_response(content: str) -> dict:
     }
 
 @patch("ollama.Client.chat")
-def test_obsidian_metadata_standard(mock_chat, tmp_path: Path) -> None:
+def test_obsidian_metadata_standard(mock_chat: Any, tmp_path: Path) -> None:
     input_dir = tmp_path / "input"
     input_dir.mkdir()
     output_dir = tmp_path / "output"

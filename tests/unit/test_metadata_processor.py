@@ -163,7 +163,7 @@ def test_process_file_callout_presence_and_normalization(processor: Any, tmp_pat
     
     # Check for Metadata callout
     assert "> [!info] Metadata" in content
-    assert "≡&nbsp;title:" in content
+    assert "≡&nbsp;**title**:" in content
     
     # Check for Abstract callout
     assert "> [!abstract]" in content

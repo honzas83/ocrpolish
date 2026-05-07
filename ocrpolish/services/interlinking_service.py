@@ -78,7 +78,7 @@ class InterlinkingService:
             
         return None
 
-    def discover(self):
+    def discover(self) -> None:
         """First pass: build the archive code maps by scanning all Markdown files."""
         self.code_map = {}
         self.bibtex_map = {}
@@ -319,12 +319,19 @@ class InterlinkingService:
             return content, []
 
         # Build a single regex to match either any existing link or any archive code
-        # For codes, we allow / and - interchangeably by replacing both in the search key with [/-]
-        def make_flexible(c):
-            # re.escape handles parentheses and other special chars
+        # For codes, we allow /, -, and spaces interchangeably and optionally
+        def make_flexible(c: str) -> str:
+            # 1. re.escape handles parentheses and other special chars
             escaped = re.escape(c)
-            # Replace both / and - with [/-] in one pass to avoid recursive replacement
-            return re.sub(r"[/-]", r"[/-]", escaped)
+            # 2. Replace escaped or unescaped / and - with [/ \-]*
+            # Use raw strings and handle both escaped and unescaped versions
+            s = re.sub(r"\\/|/|\\-|-", r"[/ \\-]*", escaped)
+            # 3. Add optional [/ \-]* around parentheses to handle "NPG/D(73)/15" or "NPG (73)"
+            s = s.replace(r"\(", r"[/ \\-]*\(").replace(r"\)", r"\)[/ \\-]*")
+            # 4. Collapse multiple identical patterns to keep it clean
+            while "[/ \\-]*[/ \\-]*" in s:
+                s = s.replace("[/ \\-]*[/ \\-]*", "[/ \\-]*")
+            return s
             
         codes_regex_parts = [make_flexible(c) for c in sorted_codes]
         codes_pattern = "|".join(codes_regex_parts)
@@ -346,79 +353,62 @@ class InterlinkingService:
                 new_lines.append(line)
                 continue
 
-            def replace_match(m):
-                # 1. Check if we matched an existing link (Wikilink or Markdown)
+            def process_code(code_text: str, display_text: str | None = None) -> str:
+                if display_text is None:
+                    display_text = code_text
+                bib = safe_identifier(code_text)
+                
+                canonical = self.bib_to_norm.get(bib, self.normalize_code(code_text))
+                if canonical not in found_codes:
+                    found_codes.append(canonical)
+                    
+                link_path = self.resolve_link(code_text, source_lang)
+                if link_path and link_path != current_filename:
+                    return f"[{display_text}]({link_path})"
+                return display_text
+
+            def replace_match(m: re.Match[str]) -> str:
+                # 1. Existing link (Wikilink or Markdown)
                 if m.group(1):
                     link_text = m.group(1)
-                    
                     if force:
-                        # Force mode: re-resolve and update
-                        # Handle Markdown links: [text](path)
-                        # Re-use the same nested parentheses logic here if needed, 
-                        # but simple extraction is usually fine as we only need the text/target.
-                        md_link_match = re.match(r"^\[(.*?)\]\((.*?)\)$", link_text)
-                        if md_link_match:
-                            text, _ = md_link_match.groups()
-                            for c in sorted_codes:
-                                if safe_identifier(text) == safe_identifier(c):
-                                    bib = safe_identifier(c)
-                                    canonical = self.bib_to_norm.get(bib, c)
-                                    if canonical not in found_codes:
-                                        found_codes.append(canonical)
-                                    
-                                    new_path = self.resolve_link(text, source_lang)
-                                    if new_path and new_path != current_filename:
-                                        return f"[{text}]({new_path})"
-                                    else:
-                                        return text
+                        # Markdown link: [text](path)
+                        md_link = re.match(r"^\[(.*?)\]\((.*?)\)$", link_text)
+                        if md_link:
+                            text = md_link.group(1)
+                            if safe_identifier(text) in self.bib_to_norm:
+                                return process_code(text)
 
-                        # Handle Wikilinks: [[target]] or [[target|display]]
-                        wiki_link_match = re.match(r"^\[\[(.*?)(?:\|(.*?))?\]\]$", link_text)
-                        if wiki_link_match:
-                            target, display = wiki_link_match.groups()
+                        # Wikilink: [[target]] or [[target|display]]
+                        wiki_link = re.match(r"^\[\[(.*?)(?:\|(.*?))?\]\]$", link_text)
+                        if wiki_link:
+                            target, display = wiki_link.groups()
                             text = display if display else target
-                            for c in sorted_codes:
-                                if safe_identifier(text) == safe_identifier(c) or safe_identifier(target) == safe_identifier(c):
-                                    bib = safe_identifier(c)
-                                    canonical = self.bib_to_norm.get(bib, c)
-                                    if canonical not in found_codes:
-                                        found_codes.append(canonical)
-                                    
-                                    new_path = self.resolve_link(text, source_lang)
-                                    if new_path and new_path != current_filename:
-                                        return f"[{text}]({new_path})"
-                                    else:
-                                        return text
-                    
-                    # Normal mode or fallthrough: extract canonical codes but leave the link text untouched
+                            if safe_identifier(text) in self.bib_to_norm:
+                                return process_code(text)
+                            if safe_identifier(target) in self.bib_to_norm:
+                                return process_code(target, display_text=text)
+
+                    # Extract canonical codes but don't modify the link text
+                    link_bib = safe_identifier(link_text)
                     for c in sorted_codes:
-                        # Use fuzzy check for inclusion
-                        if safe_identifier(c) in safe_identifier(link_text):
-                            bib = safe_identifier(c)
+                        bib = safe_identifier(c)
+                        if bib and bib in link_bib:
                             canonical = self.bib_to_norm.get(bib, c)
                             if canonical not in found_codes:
                                 found_codes.append(canonical)
                             break
                     return link_text
 
-                # 2. Check if we matched an archive code (raw text)
-                code = m.group(2)
-                bib = safe_identifier(code)
-                canonical = self.bib_to_norm.get(bib, self.normalize_code(code))
-                if canonical not in found_codes:
-                    found_codes.append(canonical)
-                    
-                link_path = self.resolve_link(code, source_lang)
-                if link_path and link_path != current_filename:
-                    return f"[{code}]({link_path})"
-                return code
+                # 2. Raw archive code
+                return process_code(m.group(2))
 
             processed_line = combined_pattern.sub(replace_match, line)
             new_lines.append(processed_line)
 
         return "\n".join(new_lines), found_codes
 
-    def interlink_all(self, dry_run: bool = False, verbose: bool = False, force: bool = False):
+    def interlink_all(self, dry_run: bool = False, verbose: bool = False, force: bool = False) -> None:
         """Second pass: perform in-place interlinking on all files."""
         updated_count = 0
         for md_file in self.vault_dir.rglob("*.md"):
@@ -432,8 +422,12 @@ class InterlinkingService:
                     body_part = fm_match.group(2)
                     
                     # Extract source language for logic
-                    fm_data = yaml.safe_load(re.match(r"^---\s*\n(.*?)\n---\s*\n", frontmatter_part, re.DOTALL).group(1))
-                    source_lang = fm_data.get("language", "English")
+                    fm_yaml_match = re.match(r"^---\s*\n(.*?)\n---\s*\n", frontmatter_part, re.DOTALL)
+                    if fm_yaml_match:
+                        fm_data = yaml.safe_load(fm_yaml_match.group(1))
+                        source_lang = fm_data.get("language", "English") if fm_data else "English"
+                    else:
+                        source_lang = "English"
                 else:
                     frontmatter_part = ""
                     body_part = content

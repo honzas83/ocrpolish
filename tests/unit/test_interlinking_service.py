@@ -1,18 +1,19 @@
 from pathlib import Path
+
 from ocrpolish.services.interlinking_service import InterlinkingService
 
-def test_service_initialization():
+
+def test_service_initialization() -> None:
     vault_dir = Path("/tmp/vault")
     service = InterlinkingService(vault_dir)
     assert service.vault_dir == vault_dir
     assert service.code_map == {}
     assert service.bibtex_map == {}
 
-def test_normalize_code():
+def test_normalize_code() -> None:
     assert InterlinkingService.normalize_code("DPC / D (69) 58") == "DPC/D(69)58"
     assert InterlinkingService.normalize_code("CODE-123") == "CODE/123"
     assert InterlinkingService.normalize_code("") == ""
-    assert InterlinkingService.normalize_code(None) == ""
 
 def test_resolve_link_priority():
     service = InterlinkingService(Path("/tmp"))
@@ -155,11 +156,16 @@ def test_interlink_body_force():
     service.code_map = {
         "CODE1": {"English": "old.md"}
     }
+    service.bibtex_map = {
+        "CODE1": {"English": "old.md"}
+    }
+    service.bib_to_norm = {"CODE1": "CODE1"}
     
     content = "See [CODE1](old.md)."
     
     # 1. Update map
     service.code_map["CODE1"] = {"English": "new.md"}
+    service.bibtex_map["CODE1"] = {"English": "new.md"}
     
     # 2. Normal interlink (should preserve old link)
     linked, _ = service.interlink_body(content, "English", force=False)

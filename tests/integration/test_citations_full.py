@@ -1,8 +1,11 @@
 from unittest.mock import patch
+
 from click.testing import CliRunner
+
 from ocrpolish.cli import cli
 from ocrpolish.models.metadata import MetadataSchema
 from tests.unit.test_ollama_client import create_mock_ollama_response
+
 
 def test_full_bibtex_citation_output(tmp_path):
     input_dir = tmp_path / "input"

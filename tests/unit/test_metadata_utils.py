@@ -1,7 +1,7 @@
 from ocrpolish.utils.metadata import (
     extract_last_page_header,
-    format_hierarchical_tag,
     format_bibtex_citation,
+    format_hierarchical_tag,
     format_metadata_table,
 )
 
