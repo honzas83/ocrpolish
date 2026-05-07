@@ -60,7 +60,10 @@ Python 3.12: Follow standard conventions.
     - **Self-Linking**: Documents MUST NOT link to themselves.
     - **Flexible Matching**: Archive codes treat `/` and `-` as equivalent separators (OCR mitigation).
     - **Sync & Sort**: References metadata is synchronized with body occurrences and sorted by order of appearance.
-    - **Formatting**: Use `<br>` as separator for vertical lists in metadata callouts.
+    - **Formatting**:
+        - Use `<br>` as separator for vertical lists in metadata callouts.
+        - **Bold fields**: `title`, `pages`, `date`, and `language` MUST be bolded in the callout.
+        - **Non-bold fields**: `language_versions` MUST NOT be bolded.
 - **Vault Initialization**:
     - **Template**: System MUST recursively copy ALL files from `obsidian_template` to the output directory (e.g., `index.md`, `.obsidian/` configs).
 

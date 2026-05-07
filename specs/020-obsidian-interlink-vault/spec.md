@@ -88,6 +88,9 @@ As a reader, I want occurrences of archive codes within the text of a document t
 - **FR-015**: System MUST synchronize the `references` metadata row with all archive codes discovered in the document body.
 - **FR-016**: System MUST sort the `references` list in the metadata table by the order of their first occurrence in the document body.
 - **FR-017**: System MUST use `<br>` tags as separators for lists in the metadata callout table (references, language_versions).
+- **FR-018**: System MUST bold the labels and values for `title`, `pages`, `date`, and `language` in the metadata callout table.
+- **FR-019**: System MUST NOT bold the `language_versions` label in the metadata callout table.
+- **FR-020**: System MUST use precise matching (e.g., regex) for metadata row detection to ensure that similar labels (like `language` and `language_versions`) do not conflict during insertion or replacement.
 
 ### Key Entities *(include if feature involves data)*
 
