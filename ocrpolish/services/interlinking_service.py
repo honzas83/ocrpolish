@@ -280,12 +280,18 @@ class InterlinkingService:
         new_table_body = "\n".join(new_rows)
         return content[:match.start()] + header + new_table_body + content[match.end():]
 
-    def interlink_body(self, content: str, source_lang: str, current_filename: str | None = None) -> tuple[str, list[str]]:
+    def interlink_body(
+        self,
+        content: str,
+        source_lang: str,
+        current_filename: str | None = None,
+        force: bool = False
+    ) -> tuple[str, list[str]]:
         """
         Processes the Markdown body.
         Converts occurrences of known archive codes to Markdown links.
         Skips lines containing 'archive_code:'.
-        Ensures idempotency by not matching inside existing links.
+        Ensures idempotency by not matching inside existing links (unless force is True).
         Prevents linking a document to itself.
         Returns (new_content, ordered_list_of_codes_found).
         """
@@ -319,8 +325,29 @@ class InterlinkingService:
 
             def replace_match(m):
                 if m.group(1):
-                    # Existing link - try to identify if it's one of our codes
+                    # Existing link
                     link_text = m.group(1)
+                    
+                    if force:
+                        # If force is on, try to 're-resolve' the link if it looks like one of our codes
+                        # This handles [Code](path.md) format
+                        link_match = re.match(r"^\[(.*?)\]\((.*?)\)$", link_text)
+                        if link_match:
+                            text, existing_path = link_match.groups()
+                            # Check if text matches any of our codes (fuzzy)
+                            for c in sorted_codes:
+                                if safe_identifier(text) == safe_identifier(c):
+                                    if c not in found_codes:
+                                        found_codes.append(c)
+                                    
+                                    new_path = self.resolve_link(text, source_lang)
+                                    if new_path and new_path != current_filename:
+                                        return f"[{text}]({new_path})"
+                                    else:
+                                        # If it shouldn't be linked (e.g. self-link), strip the link
+                                        return text
+                    
+                    # Normal (non-force) or fallthrough: preserve existing link
                     for c in sorted_codes:
                         if c in link_text: # Loose match for codes inside links
                             if c not in found_codes:
@@ -343,7 +370,7 @@ class InterlinkingService:
 
         return "\n".join(new_lines), found_codes
 
-    def interlink_all(self, dry_run: bool = False, verbose: bool = False):
+    def interlink_all(self, dry_run: bool = False, verbose: bool = False, force: bool = False):
         """Second pass: perform in-place interlinking on all files."""
         updated_count = 0
         for md_file in self.vault_dir.rglob("*.md"):
@@ -365,7 +392,7 @@ class InterlinkingService:
                     source_lang = "English"
                 
                 # 2. Interlink Body FIRST to discover all references and their order
-                new_body, discovered_codes = self.interlink_body(body_part, source_lang, md_file.name)
+                new_body, discovered_codes = self.interlink_body(body_part, source_lang, md_file.name, force=force)
                 
                 # 3. Interlink Metadata callout with discovered codes
                 new_body = self.interlink_metadata(new_body, source_lang, md_file.name, discovered_codes)

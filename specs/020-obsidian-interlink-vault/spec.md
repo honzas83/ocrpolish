@@ -83,6 +83,7 @@ As a reader, I want occurrences of archive codes within the text of a document t
 - **FR-010**: System MUST perform all modifications "inplace" on the existing Markdown files.
 - **FR-011**: System MUST silently ignore archive codes that cannot be resolved to any file in the vault (no error reporting for dangling references).
 - **FR-012**: System MUST be idempotent. It MUST detect existing Markdown links to archive codes and replace them rather than nesting new links within them.
+- **FR-012-1**: System MUST support a `--force` flag to regenerate all links. When enabled, the system MUST re-resolve existing links and update them if a better target is found according to current priority rules.
 - **FR-013**: System MUST treat slashes (`/`) and dashes (`-`) as equivalent separators for archive codes during normalization and matching (OCR error mitigation).
 - **FR-013-1**: System MUST implement a **BibTeX-style fallback** for matching: if no exact normalized match is found, attempt matching by converting both target and candidate codes to "safe identifiers" (replacing all non-alphanumeric chars with hyphens, e.g., `NPG-D-74-2` instead of `NPG/D(74)2`).
 - **FR-013-2**: System MUST resolve links using the following priority:

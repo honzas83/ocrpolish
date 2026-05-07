@@ -38,7 +38,7 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 - `ocrpolish obsidian <input_dir> <output_dir> --template-dir <template_dir>`: Generate Obsidian vault.
 - `ocrpolish index <input_dir> <output_dir>`: Index metadata and generate citations.
 - `ocrpolish tag <input_dir> <output_dir> --taxonomy <taxonomy_yaml> --tags <tags_yaml>`: Apply tagging system.
-- `ocrpolish interlink <vault_dir>`: Post-process vault for cross-linking (020).
+- `ocrpolish interlink <vault_dir> [--force]`: Post-process vault for cross-linking (020). Use `--force` to regenerate existing links.
 
 ## Code Style
 
@@ -57,6 +57,7 @@ Python 3.12: Follow standard conventions.
     - **Prohibition**: Strictly NO ALL UPPERCASE for titles.
 - **Interlinking**:
     - **Idempotency**: Single-pass regex replacement to avoid link nesting.
+    - **Regeneration**: Support `--force` flag to re-resolve and update existing links if better matches are found.
     - **Self-Linking**: Documents MUST NOT link to themselves (using BibTeX-style fuzzy matching for detection).
     - **Flexible Matching**:
         - Archive codes treat `/` and `-` as equivalent separators (OCR mitigation).

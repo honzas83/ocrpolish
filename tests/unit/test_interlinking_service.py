@@ -150,6 +150,30 @@ def test_interlink_body_idempotency():
     double_linked, _ = service.interlink_body(linked, "English")
     assert double_linked == "See [CODE1](en1.md) for details."
 
+def test_interlink_body_force():
+    service = InterlinkingService(Path("/tmp"))
+    service.code_map = {
+        "CODE1": {"English": "old.md"}
+    }
+    
+    content = "See [CODE1](old.md)."
+    
+    # 1. Update map
+    service.code_map["CODE1"] = {"English": "new.md"}
+    
+    # 2. Normal interlink (should preserve old link)
+    linked, _ = service.interlink_body(content, "English", force=False)
+    assert linked == "See [CODE1](old.md)."
+    
+    # 3. Force interlink (should update to new link)
+    forced, _ = service.interlink_body(content, "English", force=True)
+    assert forced == "See [CODE1](new.md)."
+    
+    # 4. Self-link removal on force
+    content_self = "See [CODE1](new.md)."
+    forced_self, _ = service.interlink_body(content_self, "English", current_filename="new.md", force=True)
+    assert forced_self == "See CODE1."
+
 def test_self_reference_removal():
     service = InterlinkingService(Path("/tmp"))
     # Document is CODE1

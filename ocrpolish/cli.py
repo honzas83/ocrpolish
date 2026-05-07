@@ -202,7 +202,8 @@ def tag(input_dir: Path, output_dir: Path, mask: str, taxonomy: Path, tags: Path
 @click.argument("vault_dir", type=click.Path(exists=True, file_okay=False, path_type=Path))
 @click.option("--dry-run", is_flag=True, help="If set, logs changes without writing to files.")
 @click.option("--verbose", is_flag=True, help="Show detailed matching logs.")
-def interlink(vault_dir: Path, dry_run: bool, verbose: bool):
+@click.option("--force", is_flag=True, help="Regenerate all links, even if they already exist.")
+def interlink(vault_dir: Path, dry_run: bool, verbose: bool, force: bool):
     """Post-processes a generated Obsidian vault in-place to interlink documents."""
     service = InterlinkingService(vault_dir)
     
@@ -210,7 +211,7 @@ def interlink(vault_dir: Path, dry_run: bool, verbose: bool):
     service.discover()
     
     click.echo(f"Interlinking {len(service.code_map)} unique archive codes...")
-    service.interlink_all(dry_run=dry_run, verbose=verbose)
+    service.interlink_all(dry_run=dry_run, verbose=verbose, force=force)
     
     click.echo("Done.")
 
