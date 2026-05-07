@@ -327,7 +327,7 @@ class InterlinkingService:
         codes_pattern = "|".join(codes_regex_parts)
         
         combined_pattern = re.compile(
-            rf"(\[\[.*?\]\]|\[.*?\]\(.*?\))|(?<![a-zA-Z0-9\[])({codes_pattern})(?![a-zA-Z0-9\]])"
+            rf"(\[\[.*?\]\]|\[.*?\]\(.*?\))|(?<![a-zA-Z0-9\[])({codes_pattern})(?![a-zA-Z0-9\]/])"
         )
 
         found_codes = []
@@ -340,19 +340,18 @@ class InterlinkingService:
                 continue
 
             def replace_match(m):
+                # 1. Check if we matched an existing link (Wikilink or Markdown)
                 if m.group(1):
-                    # Existing link (Wikilink [[...]] or Markdown link [...](...))
                     link_text = m.group(1)
                     
                     if force:
-                        # 1. Try Markdown link format: [text](path)
+                        # Force mode: re-resolve and update
+                        # Handle Markdown links: [text](path)
                         md_link_match = re.match(r"^\[(.*?)\]\((.*?)\)$", link_text)
                         if md_link_match:
-                            text, existing_path = md_link_match.groups()
-                            # Check if text matches any of our codes (fuzzy)
+                            text, _ = md_link_match.groups()
                             for c in sorted_codes:
                                 if safe_identifier(text) == safe_identifier(c):
-                                    # Record canonical code for metadata synchronization
                                     canonical = self.bib_to_norm.get(c, c)
                                     if canonical not in found_codes:
                                         found_codes.append(canonical)
@@ -361,40 +360,35 @@ class InterlinkingService:
                                     if new_path and new_path != current_filename:
                                         return f"[{text}]({new_path})"
                                     else:
-                                        # If it shouldn't be linked (e.g. self-link), strip the link
                                         return text
 
-                        # 2. Try Wikilink format: [[text]] or [[path|text]]
+                        # Handle Wikilinks: [[target]] or [[target|display]]
                         wiki_link_match = re.match(r"^\[\[(.*?)(?:\|(.*?))?\]\]$", link_text)
                         if wiki_link_match:
                             target, display = wiki_link_match.groups()
                             text = display if display else target
-                            # Check if text or target matches any of our codes
                             for c in sorted_codes:
                                 if safe_identifier(text) == safe_identifier(c) or safe_identifier(target) == safe_identifier(c):
-                                    # Record canonical code for metadata synchronization
                                     canonical = self.bib_to_norm.get(c, c)
                                     if canonical not in found_codes:
                                         found_codes.append(canonical)
                                     
                                     new_path = self.resolve_link(text, source_lang)
                                     if new_path and new_path != current_filename:
-                                        # Convert to our standard Markdown link format on force
                                         return f"[{text}]({new_path})"
                                     else:
-                                        # Strip the link if it shouldn't be linked
                                         return text
                     
-                    # Normal (non-force) or fallthrough: preserve existing link
+                    # Normal mode or fallthrough: extract canonical codes but leave the link text untouched
                     for c in sorted_codes:
-                        if c in link_text: # Loose match for codes inside links
+                        if c in link_text:
                             canonical = self.bib_to_norm.get(c, c)
                             if canonical not in found_codes:
                                 found_codes.append(canonical)
                             break
                     return link_text
 
-                # Archive code (raw text match)
+                # 2. Check if we matched an archive code (raw text)
                 code = m.group(2)
                 canonical = self.bib_to_norm.get(code, code)
                 if canonical not in found_codes:
@@ -402,6 +396,9 @@ class InterlinkingService:
                     
                 link_path = self.resolve_link(code, source_lang)
                 if link_path and link_path != current_filename:
+                    # Deterministic check: Is this already inside a Markdown link path?
+                    # The regex '(?<!\()(' ensures we don't match the same code again if it was just turned into a link.
+                    # But we also need to be careful with overlaps.
                     return f"[{code}]({link_path})"
                 return code
 
