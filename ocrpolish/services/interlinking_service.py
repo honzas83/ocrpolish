@@ -25,6 +25,7 @@ class InterlinkingService:
         self.vault_dir = vault_dir
         self.code_map: dict[str, dict[str, str]] = {} # normalized_code -> {lang: relative_path}
         self.bibtex_map: dict[str, dict[str, str]] = {} # bibtex_key -> {lang: filename}
+        self.bib_to_norm: dict[str, str] = {} # bibtex_key -> normalized_code
 
     @staticmethod
     def normalize_code(code: str) -> str:
@@ -113,6 +114,9 @@ class InterlinkingService:
                     # Add to BibTeX map as fuzzy fallback
                     if bib_code not in self.bibtex_map:
                         self.bibtex_map[bib_code] = {}
+                        # Map BibTeX key to the first normalized code that produces it
+                        self.bib_to_norm[bib_code] = norm_code
+                        
                     # Only add if not already present for this lang (exact code mapping takes precedence if found first)
                     if lang not in self.bibtex_map[bib_code]:
                         self.bibtex_map[bib_code][lang] = filename
@@ -344,8 +348,10 @@ class InterlinkingService:
                             # Check if text matches any of our codes (fuzzy)
                             for c in sorted_codes:
                                 if safe_identifier(text) == safe_identifier(c):
-                                    if c not in found_codes:
-                                        found_codes.append(c)
+                                    # Record canonical code for metadata synchronization
+                                    canonical = self.bib_to_norm.get(c, c)
+                                    if canonical not in found_codes:
+                                        found_codes.append(canonical)
                                     
                                     new_path = self.resolve_link(text, source_lang)
                                     if new_path and new_path != current_filename:
@@ -362,8 +368,10 @@ class InterlinkingService:
                             # Check if text or target matches any of our codes
                             for c in sorted_codes:
                                 if safe_identifier(text) == safe_identifier(c) or safe_identifier(target) == safe_identifier(c):
-                                    if c not in found_codes:
-                                        found_codes.append(c)
+                                    # Record canonical code for metadata synchronization
+                                    canonical = self.bib_to_norm.get(c, c)
+                                    if canonical not in found_codes:
+                                        found_codes.append(canonical)
                                     
                                     new_path = self.resolve_link(text, source_lang)
                                     if new_path and new_path != current_filename:
@@ -376,15 +384,17 @@ class InterlinkingService:
                     # Normal (non-force) or fallthrough: preserve existing link
                     for c in sorted_codes:
                         if c in link_text: # Loose match for codes inside links
-                            if c not in found_codes:
-                                found_codes.append(c)
+                            canonical = self.bib_to_norm.get(c, c)
+                            if canonical not in found_codes:
+                                found_codes.append(canonical)
                             break
                     return link_text
 
-                # Archive code
+                # Archive code (raw text match)
                 code = m.group(2)
-                if code not in found_codes:
-                    found_codes.append(code)
+                canonical = self.bib_to_norm.get(code, code)
+                if canonical not in found_codes:
+                    found_codes.append(canonical)
                     
                 link_path = self.resolve_link(code, source_lang)
                 if link_path and link_path != current_filename:
