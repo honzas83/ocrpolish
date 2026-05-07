@@ -120,10 +120,14 @@ class InterlinkingService:
         
         # 1. Resolve language versions for this document
         archive_code = None
+        # Support both bolded and non-bolded labels
+        archive_code_re = re.compile(r"^\s*> \| ≡&nbsp;(?:\*\*)?archive_code(?:\*\*)?: \| (.*?) \|")
         for row in table_body.split("\n"):
-            code_match = re.match(r"^\s*> \| ≡&nbsp;archive_code: \| (.*?) \|", row)
+            code_match = archive_code_re.match(row)
             if code_match:
                 archive_code = code_match.group(1).strip()
+                # Remove bold markers from extracted code if LLM added them
+                archive_code = archive_code.replace("**", "")
                 break
         
         lang_versions_row = ""
@@ -135,6 +139,7 @@ class InterlinkingService:
             
             if other_variants:
                 links = [f"[{lang}]({p})" for lang, p in sorted(other_variants.items())]
+                # Non-bold as requested
                 lang_versions_row = f"> | ≡&nbsp;language_versions: | {'<br>'.join(links)} |"
 
         # 2. Process rows
@@ -144,13 +149,19 @@ class InterlinkingService:
         # We'll handle the references row specially to ensure ordering
         found_ref_row = False
         
+        # Precise regex for detecting language and references rows (supporting optional bolding)
+        lang_re = re.compile(r"^\s*> \| ≡&nbsp;(?:\*\*)?language(?:\*\*)?: \|")
+        lang_versions_re = re.compile(r"^\s*> \| ≡&nbsp;(?:\*\*)?language_versions(?:\*\*)?: \|")
+        refs_re = re.compile(r"^(\s*> \| ☰&nbsp;(?:\*\*)?references(?:\*\*)?: \| )(.*)( \|)$")
+        intent_re = re.compile(r"^\s*> \| ≡&nbsp;(?:\*\*)?intent(?:\*\*)?: \|")
+
         for row in rows:
             # Skip existing language_versions row if present (idempotency)
-            if "language_versions:" in row:
+            if lang_versions_re.match(row):
                 continue
                 
             # Match references row
-            ref_match = re.match(r"^(\s*> \| ☰&nbsp;references: \| )(.*)( \|)$", row)
+            ref_match = refs_re.match(row)
             if ref_match:
                 found_ref_row = True
                 prefix, values_str, suffix = ref_match.groups()
@@ -199,7 +210,7 @@ class InterlinkingService:
             new_rows.append(row)
             
             # Insert language_versions row after language row
-            if "language:" in row and lang_versions_row:
+            if lang_re.match(row) and lang_versions_row:
                 new_rows.append(lang_versions_row)
         
         # If no reference row was found but we have discovered codes, add it!
@@ -215,7 +226,7 @@ class InterlinkingService:
             # Find a good place to insert (after language_versions or intent)
             insert_idx = len(new_rows)
             for i, r in enumerate(new_rows):
-                if "language_versions:" in r or "language:" in r or "intent:" in r:
+                if lang_versions_re.match(r) or lang_re.match(r) or intent_re.match(r):
                     insert_idx = i + 1
             
             ref_row = f"> | ☰&nbsp;references: | {'<br>'.join(new_parts)} |"
