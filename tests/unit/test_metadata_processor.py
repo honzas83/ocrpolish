@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from ocrpolish.data_model import TAG_PREFIX_ENTITY, TAG_PREFIX_TOPIC
 from ocrpolish.processor_metadata import MetadataProcessor
 from ocrpolish.utils.metadata import parse_frontmatter
 
@@ -117,9 +118,8 @@ def test_process_file_english_consistency(processor: Any, tmp_path: Path) -> Non
 
     assert metadata["title"] == "French Document"
     assert metadata["language"] == "English"
-    # Tag should use "City" (English) and "France" (English)
-    assert "#City/France/Paris" in body
-
+    # Tag should use configured prefix
+    assert f"#{TAG_PREFIX_ENTITY}/City/France/Paris" in body
 
 def test_process_file_callout_presence_and_normalization(processor: Any, tmp_path: Path) -> None:
     input_file = tmp_path / "test_callouts.md"
@@ -171,7 +171,7 @@ def test_process_file_callout_presence_and_normalization(processor: Any, tmp_pat
     
     # Check for normalized citation in topic reason
     # 'direct citation' should become _"direct citation"_
-    assert '#TestTopic — Justified by _"direct citation"_ from text.' in content
+    assert f"#{TAG_PREFIX_TOPIC}/TestTopic — Justified by _\"direct citation\"_ from text." in content
     
     # Check for Citing callout
     assert "> [!citing this document]" in content

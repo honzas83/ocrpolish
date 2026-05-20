@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from ocrpolish.data_model import TAG_PREFIX_ENTITY, TAG_PREFIX_TAG, TAG_PREFIX_TOPIC
 from ocrpolish.models.metadata import AggregatedTaggingResult, MetadataSchema
 from ocrpolish.processor_metadata import MetadataProcessor
 from ocrpolish.services.tagging_service import TaggingService
@@ -62,15 +63,16 @@ def test_two_pass_tagging_output(tmp_path, mock_ollama, mock_tagging_service):
     
     # Assert callout contains the expected sections from Step 2
     assert "## Categories/Topics" in content
-    assert "- #Category/Military/Training — Training exercises mentioned" in content
+    assert f"- #{TAG_PREFIX_TOPIC}/Category/Military/Training — Training exercises mentioned" in content
 
     assert "## Entities" in content
-    assert "* States" in content
-    assert "  - #State/UK" in content
-    assert "* Organisations" in content
-    assert "  - #Org/NATO" in content
-    
+    assert f"  - #{TAG_PREFIX_ENTITY}/Org/NATO" in content
+    assert f"  - #{TAG_PREFIX_ENTITY}/State/UK" in content
+
     assert "## Tags" in content
-    assert "#NATO #Exercise" in content
+    assert f"#{TAG_PREFIX_TAG}/NATO" in content
+    assert f"#{TAG_PREFIX_TAG}/Exercise" in content
+
+    assert f"#{TAG_PREFIX_TAG}/NATO #{TAG_PREFIX_TAG}/Exercise" in content
     
     mock_tagging_service.extract_tags.assert_called_once()

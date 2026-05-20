@@ -65,3 +65,9 @@ class ProcessingConfig:
     scan_paragraphs: int = 3
     vault_root: Path | None = None
     pdf_dir: Path | None = None
+
+
+# Tag Prefix Constants (Obsidian Vault organization)
+TAG_PREFIX_TOPIC: str | None = "Topics"
+TAG_PREFIX_ENTITY: str | None = "Entities"
+TAG_PREFIX_TAG: str | None = "Tags"

@@ -110,6 +110,30 @@ def normalize_obsidian_tags(tags: list[str]) -> list[str]:
     return normalized
 
 
+def prefix_tag(tag: str, root_prefix: str | None) -> str:
+    """
+    Adds a root prefix to a tag if not already present.
+    If root_prefix is None, no prefix is added.
+    Ensures normalization and returns the tag with a leading '#'.
+    """
+    # Normalize the incoming tag (no hash)
+    norm_tag = normalize_tag_component(tag)
+
+    if not norm_tag:
+        return ""
+
+    if not root_prefix:
+        return f"#{norm_tag}"
+
+    # Standardize root prefix (normalized, no hash)
+    norm_root = normalize_tag_component(root_prefix)
+
+    if norm_tag.startswith(f"{norm_root}/") or norm_tag == norm_root:
+        return f"#{norm_tag}"
+
+    return f"#{norm_root}/{norm_tag}"
+
+
 def format_hierarchical_tag(category: str, *topics: str) -> str:
     """
     Formats a category and one or more topics into an Obsidian hierarchical tag.

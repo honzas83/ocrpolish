@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 
+from ocrpolish.data_model import TAG_PREFIX_TOPIC
 from ocrpolish.cli import cli
 from ocrpolish.models.metadata import MetadataSchema, WindowTaggingResult
 
@@ -66,4 +67,4 @@ def test_cli_flat_topics_integration(mock_extract, input_dir, hierarchy_file, tm
     content = output_file.read_text()
     
     # Verify hierarchical tag is present in the output with reasoning
-    assert "- #Doctrine-and-Strategy/Nuclear-Deterrence — Mention of nuclear strategy" in content
+    assert f"- #{TAG_PREFIX_TOPIC}/Doctrine-and-Strategy/Nuclear-Deterrence — Mention of nuclear strategy" in content

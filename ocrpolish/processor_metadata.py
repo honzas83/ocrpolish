@@ -5,6 +5,12 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from ocrpolish.data_model import (
+    TAG_PREFIX_ENTITY,
+    TAG_PREFIX_TAG,
+    TAG_PREFIX_TOPIC,
+    PageMetadata,
+)
 from ocrpolish.models.metadata import LastDateSchema, MetadataSchema
 from ocrpolish.services.ollama_client import OllamaClient
 from ocrpolish.services.tagging_service import TaggingService
@@ -18,6 +24,7 @@ from ocrpolish.utils.metadata import (
     mirror_file,
     normalize_obsidian_tags,
     parse_frontmatter,
+    prefix_tag,
     safe_read_text,
     stringify_frontmatter,
 )
@@ -285,14 +292,14 @@ class MetadataProcessor:
                 if tagging_result.topic_tags:
                     for t in tagging_result.topic_tags:
                         norm_reason = self._normalize_topic_citations(t.reason)
-                        tag_prefix = f"#{t.topic}" if not t.topic.startswith("#") else t.topic
-                        topic_list_items.append(f"- {tag_prefix} — {norm_reason}")
+                        prefixed_tag = prefix_tag(t.topic, TAG_PREFIX_TOPIC)
+                        topic_list_items.append(f"- {prefixed_tag} — {norm_reason}")
 
                 if tagging_result.entity_tags:
-                    entity_tags = tagging_result.entity_tags
+                    entity_tags = [prefix_tag(e, TAG_PREFIX_ENTITY) for e in tagging_result.entity_tags]
                 if tagging_result.conceptual_tags:
                     tag_list_items = [
-                        f"#{t}" if not t.startswith("#") else t
+                        prefix_tag(t, TAG_PREFIX_TAG)
                         for t in tagging_result.conceptual_tags
                     ]
             else:
@@ -300,21 +307,22 @@ class MetadataProcessor:
                 state_fallback = states_list[0] if states_list else "Unknown"
                 default_state = metadata_dict.get("location_state") or state_fallback
                 for s in states_list:
-                    entity_tags.append(format_hierarchical_tag("State", s))
+                    entity_tags.append(prefix_tag(format_hierarchical_tag("State", s), TAG_PREFIX_ENTITY))
                 for o in orgs_list:
-                    entity_tags.append(format_hierarchical_tag("Org", o))
+                    entity_tags.append(prefix_tag(format_hierarchical_tag("Org", o), TAG_PREFIX_ENTITY))
                 for c_item in cities_list:
                     if "," in c_item:
                         city, state = [part.strip() for part in c_item.split(",", 1)]
                     else:
                         city = c_item
                         state = default_state
-                    entity_tags.append(format_hierarchical_tag("City", state, city))
+                    prefixed = prefix_tag(format_hierarchical_tag("City", state, city), TAG_PREFIX_ENTITY)
+                    entity_tags.append(prefixed)
 
                 flat_tags = metadata_dict.get("tags", [])
                 if flat_tags:
                     tag_list_items = [
-                        f"#{t}" if not t.startswith("#") else t for t in flat_tags
+                        prefix_tag(t, TAG_PREFIX_TAG) for t in flat_tags
                     ]
             
             # Group entities by type for the callout
@@ -331,9 +339,22 @@ class MetadataProcessor:
                 grouped_entities: dict[str, list[str]] = {}
                 for e_tag in sorted(entity_tags):
                     tag = f"#{e_tag}" if not e_tag.startswith("#") else e_tag
-                    # Extract type: #Type/Name -> Type
-                    parts = tag.lstrip("#").split("/", 1)
-                    etype = parts[0] if len(parts) > 1 else "Other"
+                    
+                    # Extract type: #Prefix/Type/Name -> Type
+                    full_tag = tag.lstrip("#")
+                    etype = "Other"
+                    
+                    if TAG_PREFIX_ENTITY:
+                        prefix_with_slash = f"{TAG_PREFIX_ENTITY}/"
+                        if full_tag.startswith(prefix_with_slash):
+                            # Get component after Prefix/
+                            sub_tag = full_tag[len(prefix_with_slash):]
+                            parts = sub_tag.split("/", 1)
+                            etype = parts[0] if len(parts) > 0 else "Other"
+                    else:
+                        # No prefix, just Type/Name
+                        parts = full_tag.split("/", 1)
+                        etype = parts[0] if len(parts) > 1 else "Other"
                     
                     label = type_labels.get(etype, etype)
                     if label not in grouped_entities:

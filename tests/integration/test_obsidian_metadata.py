@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
+from ocrpolish.data_model import TAG_PREFIX_ENTITY
 from ocrpolish.cli import cli
 from ocrpolish.models.metadata import MetadataSchema
 from ocrpolish.utils.metadata import parse_frontmatter
@@ -97,10 +98,11 @@ def test_obsidian_metadata_entities(tmp_path: Path) -> None:
         # Present in body callout
         assert "## Entities" in body
         assert "* States" in body
-        assert "  - #State/United-Kingdom" in body
-        assert "  - #State/United-States" in body
+        assert f"  - #{TAG_PREFIX_ENTITY}/State/United-Kingdom" in body
+        assert f"  - #{TAG_PREFIX_ENTITY}/State/United-States" in body
         assert "* Organisations" in body
-        assert "  - #Org/NATO" in body
+        assert f"  - #{TAG_PREFIX_ENTITY}/Org/NATO" in body
         assert "* Cities" in body
-        assert "  - #City/United-Kingdom/London" in body
-        assert "  - #City/United-States/Washington" in body
+        assert f"  - #{TAG_PREFIX_ENTITY}/City/United-Kingdom/London" in body
+        assert f"  - #{TAG_PREFIX_ENTITY}/City/United-States/Washington" in body
+
